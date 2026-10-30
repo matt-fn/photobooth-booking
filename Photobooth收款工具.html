@@ -1,0 +1,2423 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>洁柠映像 Photobooth 预约后台</title>
+<link rel="stylesheet" href="https://unpkg.com/element-plus@2.7.8/dist/index.css">
+<script src="https://unpkg.com/vue@3.4.38/dist/vue.global.prod.js"></script>
+<script src="https://unpkg.com/element-plus@2.7.8/dist/index.full.js"></script>
+<script src="https://unpkg.com/element-plus@2.7.8/dist/locale/zh-cn.js"></script>
+<script src="https://unpkg.com/@element-plus/icons-vue@2.3.1/dist/index.iife.min.js"></script>
+<script src="https://unpkg.com/vue-router@4.4.0/dist/vue-router.global.prod.js"></script>
+<script src="https://unpkg.com/dayjs@1.11.11/dayjs.min.js"></script>
+<!-- 引入二维码生成库 -->
+<script src="https://unpkg.com/qrcodejs@1.0.0/qrcode.min.js"></script>
+<!-- 引入农历转换库 -->
+<script src="https://unpkg.com/lunar-javascript/lunar.js"></script>
+<style>
+*{box-sizing:border-box}
+html,body,#app{height:100%;margin:0;padding:0}
+.layout-wrap{height:100vh}
+.sidebar{background-color:#304156;height:100%;overflow:hidden}
+.logo{height:50px;line-height:50px;text-align:center;color:#fff;font-weight:bold;font-size:16px;background:#263445;white-space:nowrap;overflow:hidden; padding: 0 10px; text-overflow: ellipsis; display: flex; align-items: center; justify-content: center;}
+.logo img { max-height: 30px; max-width: 160px; object-fit: contain; margin-right: 8px;}
+.header{background:#fff;border-bottom:1px solid #e6e6e6;display:flex;justify-content:space-between;align-items:center;padding:0 16px}
+.main{background:#f5f7fa;padding:16px}
+.page-wrap{padding:0}
+.header-row{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
+.empty-tip{padding:40px;text-align:center;color:#909399}
+
+/* ================= 日历看板专属样式 ================= */
+.calendar-wrapper { background: #fff; border-radius: 4px; border: 1px solid #e4e7ed; }
+.calendar-header { display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; font-weight: bold; background: #f5f7fa; padding: 12px 0; border-bottom: 1px solid #e4e7ed; color: #606266; }
+.calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); grid-auto-rows: minmax(120px, auto); }
+.calendar-day { 
+  border-right: 1px solid #e4e7ed; border-bottom: 1px solid #e4e7ed; 
+  padding: 8px; transition: background 0.2s; position: relative; 
+  display: flex; flex-direction: column; cursor: pointer;
+}
+.calendar-day:hover { background-color: #f5f7fa; }
+.calendar-day:nth-child(7n) { border-right: none; }
+.calendar-day.is-today { background: #f0f9eb; }
+.calendar-day.is-today:hover { background-color: #e1f3d8; }
+.calendar-day.is-other-month { background: #fafafa; color: #c0c4cc; }
+
+.day-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px; }
+.day-solar { font-size: 18px; font-weight: bold; font-family: Arial, sans-serif; line-height: 1; }
+.day-lunar { font-size: 12px; color: #909399; margin-top: 2px; }
+.is-today .day-solar { color: #67c23a; }
+.is-other-month .day-solar, .is-other-month .day-lunar { opacity: 0.6; }
+.day-orders { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
+.day-orders::-webkit-scrollbar { width: 4px; }
+.day-orders::-webkit-scrollbar-thumb { background: #dcdfe6; border-radius: 2px; }
+
+.order-card { padding: 4px 6px; border-radius: 4px; background: #ecf5ff; border: 1px solid #d9ecff; font-size: 12px; cursor: pointer; transition: all 0.2s; line-height: 1.3; }
+.order-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.1); transform: translateY(-1px); }
+.order-card .oc-title { font-weight: bold; color: #303133; display: flex; justify-content: space-between; align-items: center; }
+.order-card .oc-time { color: #409eff; font-size: 11px; }
+.order-card .oc-booth { color: #909399; font-size: 11px; margin-top: 2px; }
+
+/* 状态颜色 */
+.status-draft { background: #f4f4f5; border-color: #e9e9eb; }
+.status-deposit_paid { background: #ecf5ff; border-color: #d9ecff; }
+.status-verified { background: #f0f9eb; border-color: #e1f3d8; }
+.status-settled { background: #f0f9eb; border-color: #e1f3d8; }
+.status-refund { background: #fef0f0; border-color: #fde2e2; }
+
+/* ================= 打印页面专属样式 ================= */
+.print-page { padding: 30px; background: #f0f2f5; min-height: 100vh; }
+.print-box {
+  width: 210mm; min-height: 297mm; padding: 20mm 15mm; background: #fff; margin: 0 auto;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  font-family: "Helvetica Neue", Helvetica, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  color: #333; position: relative;
+}
+.print-header { text-align: center; margin-bottom: 25px; border-bottom: 2px solid #333; padding-bottom: 15px; position: relative; min-height: 60px;}
+.print-header .logo-img { position: absolute; left: 0; top: 50%; transform: translateY(-50%); height: 80px; width: 200px; object-fit: contain; object-position: left center; }
+.print-header .company { font-size: 24px; font-weight: bold; letter-spacing: 2px; margin-bottom: 8px; color: #111; margin-top: 5px; }
+.print-header .title { font-size: 20px; font-weight: bold; margin-bottom: 5px; color: #444; }
+.print-header .no { font-size: 13px; color: #666; text-align: right; margin-top: 8px; }
+
+.info-table, .item-table, .summary-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 14px; }
+.info-table td { padding: 8px 6px; border-bottom: 1px dashed #eee; }
+.info-table .label { width: 85px; font-weight: bold; color: #555; }
+
+.section-title { font-size: 15px; font-weight: bold; margin: 20px 0 12px 0; padding-left: 10px; border-left: 4px solid #409eff; color: #333; }
+
+.item-table th, .item-table td { border: 1px solid #ccc; padding: 8px 10px; text-align: center; }
+.item-table th { background: #f8f8f8; font-weight: bold; color: #333; }
+.item-table td { color: #444; }
+
+.summary-table td { padding: 8px 6px; border-bottom: 1px dashed #eee; }
+.summary-table .label { width: 130px; font-weight: bold; color: #555; text-align: right; white-space: nowrap; }
+.summary-table .val { width: 180px; font-weight: bold; font-size: 15px; color: #d9534f; }
+.summary-table .uppercase { color: #000; font-size: 15px; letter-spacing: 1px; }
+
+.qrcode-box { text-align: center; margin-top: 20px; padding: 15px; border: 1px dashed #ccc; border-radius: 8px; background: #fafafa; }
+.qrcode-box .qr-title { font-weight: bold; font-size: 15px; color: #333; margin-bottom: 6px; }
+.qrcode-box .qr-link { font-size: 12px; color: #666; margin-bottom: 10px; word-break: break-all; }
+.qrcode-box .qr-img { display: flex; justify-content: center; }
+.qrcode-box .qr-tip { font-size: 12px; color: #909399; margin-top: 8px; }
+
+.remark-box { font-size: 14px; margin: 20px 0; line-height: 1.5; padding: 10px; background: #fafafa; border-radius: 4px; }
+
+/* 打印签字区 */
+.sign-row { display: flex; justify-content: space-between; align-items: flex-end; gap: 10px; margin-top: 60px; font-size: 15px; font-weight: bold; color: #333; }
+.sign-item { display: flex; align-items: flex-end; gap: 4px; }
+.sign-label { font-weight: bold; font-size: 14px; line-height: 26px; white-space: nowrap; }
+.sign-line { display: block; box-sizing: border-box; min-width: 80px; height: 26px; line-height: 24px; border-bottom: 1px solid #333; text-align: center; font-size: 15px; font-weight: normal; padding: 0 6px; position: relative; white-space: nowrap; }
+
+/* 打印页底部致谢文字 */
+.print-footer { margin-top: 45px; text-align: center; }
+.print-footer .pf-thanks { font-size: 19px; font-weight: bold; font-style: italic; color: #111; letter-spacing: 2px; }
+.print-footer .pf-sub { margin-top: 8px; font-size: 13px; color: #888; letter-spacing: 1px; }
+.btn-wrap { text-align: center; margin-top: 30px; }
+
+/* ================= 账单（热敏小票：纸张宽度、字号、内容可在基础设置中选择） ================= */
+.receipt-box {
+  width: var(--rc-width, 80mm); min-height: 40mm; margin: 0 auto; background: #fff;
+  padding: 4mm 4mm 6mm; box-sizing: border-box; position: relative;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  font-family: "Helvetica Neue", Helvetica, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  color: #222; font-size: var(--rc-base, 11px); line-height: 1.45;
+}
+.receipt-box.rc-paper-58 { padding: 3mm 3mm 5mm; }
+.receipt-box .rc-head { text-align: center; padding-bottom: 2mm; border-bottom: 1px dashed #999; }
+.receipt-box .rc-logo { display: block; margin: 0 auto 1.5mm; max-height: 15mm; max-width: 62%; object-fit: contain; }
+.receipt-box .rc-shop { font-size: 1.18em; font-weight: bold; letter-spacing: 0.5px; }
+.receipt-box .rc-title { font-size: 1em; margin-top: 0.5mm; }
+.receipt-box .rc-meta { font-size: 0.82em; color: #555; margin-top: 0.5mm; }
+.receipt-box .rc-sec { padding: 2mm 0; border-bottom: 1px dashed #ddd; }
+.receipt-box .rc-sec-title { font-weight: bold; font-size: 0.95em; margin-bottom: 1mm; color: #000; }
+.receipt-box .rc-row { display: flex; justify-content: space-between; gap: 2mm; padding: 0.3mm 0; }
+.receipt-box .rc-row > span:first-child { color: #555; white-space: nowrap; }
+.receipt-box .rc-row > span:last-child { text-align: right; font-weight: bold; word-break: break-all; }
+.receipt-box .rc-discount > span:last-child { color: #d9534f; }
+.receipt-box .rc-strong > span:last-child { font-size: 1.09em; }
+.receipt-box .rc-upper { font-size: 0.82em; color: #555; margin-top: 1mm; }
+.receipt-box .rc-item { padding: 0.8mm 0; border-bottom: 1px dotted #eee; }
+.receipt-box .rc-item:last-child { border-bottom: none; }
+.receipt-box .rc-item-head { display: flex; justify-content: space-between; gap: 2mm; font-weight: bold; }
+.receipt-box .rc-item-head span:first-child { flex: 1; padding-right: 2mm; }
+.receipt-box .rc-item-sub { font-size: 0.82em; color: #666; margin-top: 0.3mm; }
+.receipt-box .rc-item-content { font-size: 0.82em; color: #777; margin-top: 0.5mm; white-space: pre-wrap; line-height: 1.4; }
+.receipt-box .rc-pay { padding: 0.8mm 0; border-bottom: 1px dotted #eee; }
+.receipt-box .rc-pay:last-child { border-bottom: none; }
+.receipt-box .rc-pay-head { display: flex; justify-content: space-between; gap: 2mm; font-weight: bold; }
+.receipt-box .rc-pay-sub { font-size: 0.82em; color: #777; margin-top: 0.3mm; word-break: break-all; }
+.receipt-box .rc-amt { color: #d9534f; }
+.receipt-box .rc-muted { font-size: 0.82em; color: #999; }
+.receipt-box .rc-note { font-size: 0.82em; color: #888; margin-top: 0.6mm; }
+.receipt-box .rc-remark { font-size: 0.86em; color: #444; white-space: pre-wrap; line-height: 1.45; }
+.receipt-box .rc-sign { display: flex; flex-wrap: wrap; gap: 3mm; padding-top: 3mm; }
+.receipt-box .rc-sign-item { display: flex; align-items: flex-end; gap: 1mm; width: calc(50% - 1.5mm); }
+.receipt-box .rc-sign-label { white-space: nowrap; color: #555; }
+.receipt-box .rc-underline { flex: 1; min-width: 0; min-height: 4.5mm; border-bottom: 1px solid #333; text-align: center; position: relative; padding: 0 1mm 0.5mm; }
+.receipt-box .rc-stamp { position: absolute; left: 50%; bottom: -11mm; transform: translateX(-50%) rotate(-5deg); width: 16mm; max-height: 16mm; object-fit: contain; opacity: 0.85; mix-blend-mode: multiply; pointer-events: none; }
+.receipt-box .rc-footer { margin-top: 4mm; padding-top: 2mm; border-top: 1px dashed #999; text-align: center; }
+.receipt-box .rc-thanks { font-size: 1.09em; font-weight: bold; font-style: italic; letter-spacing: 1px; color: #111; }
+.receipt-box .rc-sub { font-size: 0.82em; color: #777; margin-top: 0.8mm; }
+.receipt-box .rc-invoice { margin: 2mm 0; padding: 2mm 0; border-top: 1px dashed #ddd; text-align: center; }
+.receipt-box .rc-inv-title { font-size: 1em; font-weight: bold; margin-bottom: 1.5mm; }
+.receipt-box .rc-inv-qr { display: flex; justify-content: center; }
+.receipt-box .rc-inv-qr img, .receipt-box .rc-inv-qr canvas { width: 28mm !important; height: 28mm !important; }
+.receipt-box .rc-inv-tip { font-size: 0.82em; color: #777; margin-top: 1mm; line-height: 1.4; }
+/* 58mm 便携机：签名区改成单列，签章放到签名区底部居中，避免压住下一行 */
+.receipt-box.rc-paper-58 .rc-sign-item { width: 100%; }
+.receipt-box.rc-paper-58 .rc-sign { position: relative; }
+.receipt-box.rc-paper-58 .rc-underline { position: static; }
+.receipt-box.rc-paper-58 .rc-stamp { left: 50%; bottom: 0; width: 16mm; max-height: 16mm; }
+
+/* ================= 打印真实排版调整 ================= */
+@media print {
+  body, html { background: #fff; margin: 0; padding: 0; }
+  .print-page { padding: 0; background: #fff; }
+  .print-box { 
+    box-shadow: none; margin: 0; width: 100%; min-height: auto; padding: 0; border: none; 
+  }
+  .btn-wrap { display: none !important; }
+  @page { margin: 10mm 15mm; } 
+  .item-table tr { page-break-inside: avoid; }
+  .item-table thead { display: table-header-group; }
+  .print-header { margin-bottom: 15px; padding-bottom: 10px; }
+  .info-table, .item-table, .summary-table { margin-bottom: 15px; }
+  .item-table th, .item-table td { padding: 6px 8px; }
+  .info-table td { padding: 6px 4px; }
+  .summary-table td { padding: 6px 4px; }
+  .section-title { margin: 15px 0 10px 0; }
+  .remark-box { margin: 15px 0; }
+  .sign-row { margin-top: 40px; }
+  .print-footer { margin-top: 35px; page-break-inside: avoid; }
+  .receipt-box { box-shadow: none; margin: 0; }
+  .receipt-tip { display: none !important; }
+  .qrcode-box { background: #fff; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <div style="display:flex;justify-content:center;align-items:center;height:100vh;color:#909399;">
+    正在加载系统组件...
+  </div>
+</div>
+<script>
+const { createApp, ref, reactive, computed, watch, onMounted, onBeforeUnmount, nextTick } = Vue
+const { createRouter, createWebHashHistory, useRoute, useRouter } = VueRouter
+const { ElMessage, ElMessageBox } = ElementPlus
+
+const STORAGE_KEY = 'jn_photobooth_db'
+const USER_KEY = 'jn_photobooth_user'
+
+/* ===================== 容错版 文件系统访问 ===================== */
+let fileHandle = null;
+
+const idbHelper = {
+  db: null,
+  async init() {
+    return new Promise((resolve) => {
+      try {
+        const request = indexedDB.open('JnSystemDB', 1);
+        request.onupgradeneeded = (e) => { e.target.result.createObjectStore('handles'); };
+        request.onsuccess = (e) => { this.db = e.target.result; resolve(); };
+        request.onerror = () => resolve();
+      } catch (e) { resolve(); }
+    });
+  },
+  async set(key, val) {
+    if (!this.db) return;
+    return new Promise((resolve) => {
+      try {
+        const tx = this.db.transaction('handles', 'readwrite');
+        tx.objectStore('handles').put(val, key);
+        tx.oncomplete = () => resolve();
+      } catch (e) { resolve(); }
+    });
+  },
+  async get(key) {
+    if (!this.db) return null;
+    return new Promise((resolve) => {
+      try {
+        const tx = this.db.transaction('handles', 'readonly');
+        const req = tx.objectStore('handles').get(key);
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => resolve(null);
+      } catch (e) { resolve(null); }
+    });
+  }
+};
+
+/* 金额转大写工具函数 */
+const digitUppercase = (n) => {
+  if (n === undefined || n === null || n === '') return '零元整';
+  let num = Number(n);
+  if (isNaN(num)) return '零元整';
+  if (num === 0) return '零元整';
+  const fraction = ['角', '分'];
+  const digit = ['零', '壹', '贰', '叁', '肆', '伍', '陆', '柒', '捌', '玖'];
+  const unit = [['元', '万', '亿'], ['', '拾', '佰', '仟']];
+  let head = num < 0 ? '负' : '';
+  num = Math.abs(num);
+  let s = '';
+  for (let i = 0; i < fraction.length; i++) {
+    s += (digit[Math.floor(num * 10 * Math.pow(10, i)) % 10] + fraction[i]).replace(/零./, '');
+  }
+  s = s || '整';
+  num = Math.floor(num);
+  for (let i = 0; i < unit[0].length && num > 0; i++) {
+    let p = '';
+    for (let j = 0; j < unit[1].length && num > 0; j++) {
+      p = digit[num % 10] + unit[1][j] + p;
+      num = Math.floor(num / 10);
+    }
+    s = p.replace(/(零.)*零$/, '').replace(/^$/, '零') + unit[0][i] + s;
+  }
+  return head + s.replace(/(零.)*零元/, '元').replace(/(零.)+/g, '零').replace(/^整$/, '零元整');
+}
+
+const DEFAULT_DB = {
+  auth: { username: 'admin', password: '123456' },
+  shopName: '洁柠映像',
+  shopLogo: '', 
+  stampUrl: '',       
+  invoiceName: '',    
+  approverName: '',   
+  footerThanks: '感谢您的支持与信任！',              
+  footerSub: '期待与您再次相遇，记录更多美好瞬间。',
+  receiptPaper: '80',       // 热敏纸规格：80 / 58
+  receiptFont: 'normal',    // 小票字号：small / normal / large
+  receiptShowItems: true,   // 小票是否显示“服务项目” 
+  invoiceQrEnabled: false,  // 账单底部是否打印开票二维码
+  invoiceQrUrl: '',         // 开票链接模板（支持变量）
+  contracts: [], payments: [], refunds: [],
+  booths: [{ id: 1, name: '复古木机' }, { id: 2, name: '镜面机' }, { id: 3, name: '360环拍机' }],
+  staffs: [{ id: 1, name: '小A' }, { id: 2, name: '小B' }],
+  packages: [
+    { id: 1, name: '1小时Photobooth套餐', price: 800, content: '含无限次打印\n专属道具\n电子底片全送' },
+    { id: 2, name: '2小时Photobooth套餐', price: 1500, content: '含无限次打印\n专属道具\n电子底片全送\n相册一本' },
+    { id: 3, name: '3小时Photobooth套餐', price: 2000, content: '含无限次打印\n专属道具\n电子底片全送\n相册两本\n背景布定制' }
+  ]
+}
+
+const DB = {
+  getSnapshot() {
+    let data = null;
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      try { data = JSON.parse(raw); } catch (e) {}
+    }
+    if (!data || typeof data !== 'object') data = JSON.parse(JSON.stringify(DEFAULT_DB));
+    
+    if (!data.auth) data.auth = { username: 'admin', password: '123456' };
+    if (!data.shopName) data.shopName = '洁柠映像';
+    if (data.shopLogo === undefined) data.shopLogo = '';
+    if (data.stampUrl === undefined) data.stampUrl = '';
+    if (data.invoiceName === undefined) data.invoiceName = '';
+    if (data.approverName === undefined) data.approverName = '';
+    if (data.footerThanks === undefined) data.footerThanks = DEFAULT_DB.footerThanks;
+    if (data.footerSub === undefined) data.footerSub = DEFAULT_DB.footerSub;
+    if (data.receiptPaper === undefined) data.receiptPaper = '80';
+    if (data.receiptFont === undefined) data.receiptFont = 'normal';
+    if (data.receiptShowItems === undefined) data.receiptShowItems = true;
+    if (data.invoiceQrEnabled === undefined) data.invoiceQrEnabled = false;
+    if (data.invoiceQrUrl === undefined) data.invoiceQrUrl = '';
+    if (!data.contracts) data.contracts = [];
+    if (!data.payments) data.payments = [];
+    if (!data.refunds) data.refunds = [];
+    if (!data.booths || !data.booths.length) data.booths = JSON.parse(JSON.stringify(DEFAULT_DB.booths));
+    if (!data.staffs || !data.staffs.length) data.staffs = JSON.parse(JSON.stringify(DEFAULT_DB.staffs));
+    if (!data.packages || !data.packages.length) data.packages = JSON.parse(JSON.stringify(DEFAULT_DB.packages));
+    return data;
+  },
+
+  async load() {
+    if (fileHandle) {
+      try {
+        const file = await fileHandle.getFile();
+        const text = await file.text();
+        if (text) {
+          const parsed = JSON.parse(text);
+          if (parsed && parsed.contracts) {
+            if (!parsed.auth) parsed.auth = { username: 'admin', password: '123456' };
+            if (!parsed.shopName) parsed.shopName = '洁柠映像';
+            if (parsed.shopLogo === undefined) parsed.shopLogo = '';
+            if (parsed.stampUrl === undefined) parsed.stampUrl = '';
+            if (parsed.invoiceName === undefined) parsed.invoiceName = '';
+            if (parsed.approverName === undefined) parsed.approverName = '';
+            if (parsed.footerThanks === undefined) parsed.footerThanks = DEFAULT_DB.footerThanks;
+            if (parsed.footerSub === undefined) parsed.footerSub = DEFAULT_DB.footerSub;
+            if (parsed.receiptPaper === undefined) parsed.receiptPaper = '80';
+            if (parsed.receiptFont === undefined) parsed.receiptFont = 'normal';
+            if (parsed.receiptShowItems === undefined) parsed.receiptShowItems = true;
+            if (parsed.invoiceQrEnabled === undefined) parsed.invoiceQrEnabled = false;
+            if (parsed.invoiceQrUrl === undefined) parsed.invoiceQrUrl = '';
+            localStorage.setItem(STORAGE_KEY, text); 
+            return parsed;
+          }
+        }
+      } catch (e) {
+        console.warn('读取本地文件失败，降级到浏览器缓存', e);
+      }
+    }
+    return this.getSnapshot();
+  },
+  
+  async save(data) {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    } catch(e) { console.warn('本地缓存写入失败'); }
+    
+    if (fileHandle) {
+      try {
+        const writable = await fileHandle.createWritable();
+        await writable.write(JSON.stringify(data, null, 2));
+        await writable.close();
+      } catch (e) {
+        console.error('写入本地文件失败', e);
+      }
+    }
+  },
+  
+  getUser() { const u = localStorage.getItem(USER_KEY); return u ? JSON.parse(u) : null },
+  setUser(u) { localStorage.setItem(USER_KEY, JSON.stringify(u)) },
+  clearUser() { localStorage.removeItem(USER_KEY) }
+}
+
+const STATUS = { draft: '草稿', deposit_paid: '已付定金', wait_verify: '待核销', verified: '已核销', settled: '已结清', refund: '已退款' }
+const STATUS_TAG = { draft: 'info', deposit_paid: 'primary', wait_verify: 'warning', verified: 'success', settled: 'success', refund: 'danger' }
+
+const openPrint = (path, id) => {
+  const base = location.href.split('#')[0]
+  window.open(`${base}#${path}?cid=${id}`, '_blank')
+}
+
+/* ===================== 登录 ===================== */
+const Login = {
+  template: `
+    <div class="login-wrap" style="width:100%;height:100vh;display:flex;align-items:center;justify-content:center;background:#f5f7fa;">
+      <el-card class="login-card" style="width:360px;padding:20px 10px;">
+        <div style="text-align:center;font-size:20px;font-weight:bold;margin-bottom:24px; display:flex; flex-direction:column; align-items:center; gap:12px;">
+          <img v-if="shopLogo" :src="shopLogo" style="max-height: 50px; max-width: 180px; object-fit: contain;" />
+          <span>{{ shopName }} · Photobooth预约后台</span>
+        </div>
+        <el-form :model="form" label-width="80px" @submit.prevent>
+          <el-form-item label="账号"><el-input v-model="form.username" placeholder="输入账号" @keyup.enter="handleLogin"/></el-form-item>
+          <el-form-item label="密码"><el-input v-model="form.password" type="password" placeholder="输入密码" @keyup.enter="handleLogin"/></el-form-item>
+          <el-form-item><el-button type="primary" style="width:100%" @click="handleLogin">登录</el-button></el-form-item>
+        </el-form>
+        <div style="text-align:center;color:#909399;font-size:12px;">默认 admin / 123456</div>
+      </el-card>
+    </div>
+  `,
+  setup() {
+    const router = useRouter()
+    const form = reactive({ username: '', password: '' })
+    const shopName = ref('洁柠映像')
+    const shopLogo = ref('')
+
+    onMounted(async () => {
+      const db = await DB.load()
+      if(db.shopName) shopName.value = db.shopName
+      if(db.shopLogo) shopLogo.value = db.shopLogo
+    })
+
+    const handleLogin = async () => {
+      try {
+        const db = await DB.load();
+        const auth = db.auth || { username: 'admin', password: '123456' };
+        if (form.username === auth.username && form.password === auth.password) {
+          DB.setUser({ username: form.username })
+          ElMessage.success('登录成功')
+          router.push('/calendar')
+        } else {
+          ElMessage.error('账号或密码错误')
+        }
+      } catch (e) {
+        ElMessage.error('登录失败：' + e.message)
+      }
+    }
+    return { form, handleLogin, shopName, shopLogo }
+  }
+}
+
+/* ===================== 主布局 ===================== */
+const MainLayout = {
+  template: `
+    <el-container class="layout-wrap">
+      <el-aside :width="isCollapse ? '64px' : '200px'" class="sidebar">
+        <div class="logo">
+          <template v-if="!isCollapse">
+            <img v-if="shopLogo" :src="shopLogo" alt="logo" />
+            <span v-else>{{ shopName }}</span>
+          </template>
+          <template v-else>
+            <span>{{ shopName.substring(0,1) }}</span>
+          </template>
+        </div>
+        <el-menu :default-active="activeMenu" :collapse="isCollapse" :collapse-transition="false" router background-color="#304156" text-color="#bfcbd9" active-text-color="#409eff">
+          <el-menu-item index="/calendar"><el-icon><Calendar /></el-icon><template #title>档期日历看板</template></el-menu-item>
+          <el-menu-item index="/contract"><el-icon><Document /></el-icon><template #title>新建预约合约</template></el-menu-item>
+          <el-menu-item index="/contract-list"><el-icon><List /></el-icon><template #title>合约订单列表</template></el-menu-item>
+          <el-menu-item index="/settings"><el-icon><Setting /></el-icon><template #title>基础设置</template></el-menu-item>
+        </el-menu>
+      </el-aside>
+      <el-container>
+        <el-header class="header">
+          <div class="header-left"><el-button @click="isCollapse = !isCollapse"><el-icon><component :is="isCollapse ? 'Expand' : 'Fold'" /></el-icon></el-button></div>
+          <div class="header-right">
+            <el-dropdown @command="handleCommand">
+              <span class="user" style="cursor:pointer; display:flex; align-items:center; gap:4px;">
+                <el-icon><User /></el-icon> {{ user?.username }}
+              </span>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item command="changePwd">修改密码</el-dropdown-item>
+                  <el-dropdown-item command="logout" divided>退出登录</el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+          </div>
+        </el-header>
+        <el-main class="main"><router-view @shop-updated="loadShopConfig" /></el-main>
+      </el-container>
+
+      <el-dialog v-model="pwdDialogOpen" title="修改密码" width="400px" @close="resetPwdForm">
+        <el-form :model="pwdForm" label-width="90px" @submit.prevent>
+          <el-form-item label="原密码">
+            <el-input v-model="pwdForm.oldPwd" type="password" placeholder="请输入当前密码" />
+          </el-form-item>
+          <el-form-item label="新密码">
+            <el-input v-model="pwdForm.newPwd" type="password" placeholder="请输入新密码" />
+          </el-form-item>
+          <el-form-item label="确认新密码">
+            <el-input v-model="pwdForm.confirmPwd" type="password" placeholder="请再次输入新密码" />
+          </el-form-item>
+        </el-form>
+        <template #footer>
+          <el-button @click="pwdDialogOpen = false">取消</el-button>
+          <el-button type="primary" @click="submitPwd">确认修改</el-button>
+        </template>
+      </el-dialog>
+    </el-container>
+  `,
+  setup() {
+    const route = useRoute()
+    const router = useRouter()
+    const user = DB.getUser()
+    const isCollapse = ref(false)
+    const activeMenu = computed(() => route.path)
+    const shopName = ref('洁柠映像')
+    const shopLogo = ref('')
+    
+    const pwdDialogOpen = ref(false)
+    const pwdForm = reactive({ oldPwd: '', newPwd: '', confirmPwd: '' })
+
+    const loadShopConfig = async () => {
+      const db = await DB.load()
+      if(db.shopName) shopName.value = db.shopName
+      if(db.shopLogo !== undefined) shopLogo.value = db.shopLogo
+    }
+
+    onMounted(loadShopConfig)
+
+    const resetPwdForm = () => {
+      pwdForm.oldPwd = ''
+      pwdForm.newPwd = ''
+      pwdForm.confirmPwd = ''
+    }
+
+    const handleCommand = (cmd) => {
+      if (cmd === 'logout') { 
+        DB.clearUser(); 
+        ElMessage.success('已退出登录'); 
+        router.push('/login') 
+      } else if (cmd === 'changePwd') {
+        pwdDialogOpen.value = true
+      }
+    }
+
+    const submitPwd = async () => {
+      if (!pwdForm.oldPwd || !pwdForm.newPwd || !pwdForm.confirmPwd) {
+        return ElMessage.warning('请填写完整密码信息')
+      }
+      if (pwdForm.newPwd !== pwdForm.confirmPwd) {
+        return ElMessage.warning('两次输入的新密码不一致')
+      }
+      if (pwdForm.newPwd.length < 6) {
+        return ElMessage.warning('新密码长度不能少于6位')
+      }
+
+      try {
+        const db = await DB.load()
+        const auth = db.auth || { username: 'admin', password: '123456' }
+        
+        if (pwdForm.oldPwd !== auth.password) {
+          return ElMessage.error('原密码不正确')
+        }
+
+        auth.password = pwdForm.newPwd
+        db.auth = auth
+        await DB.save(db)
+        
+        ElMessage.success('密码修改成功！下次登录请使用新密码。')
+        pwdDialogOpen.value = false
+      } catch (e) {
+        ElMessage.error('修改失败：' + e.message)
+      }
+    }
+
+    return { isCollapse, activeMenu, user, handleCommand, pwdDialogOpen, pwdForm, resetPwdForm, submitPwd, shopName, shopLogo, loadShopConfig }
+  }
+}
+
+/* ===================== 基础设置 ===================== */
+const Settings = {
+  template: `
+    <div class="page-wrap">
+      <el-card>
+        <template #header><div class="header-row"><span>基础设置</span><span style="color:#909399;font-size:12px;">可自由增删改店铺、机位、助理和快捷套餐</span></div></template>
+        <el-tabs v-model="activeTab">
+          <el-tab-pane label="店铺设置" name="shop">
+            <div style="max-width: 550px; margin-top: 20px;">
+              <el-form :model="shopForm" label-width="100px" @submit.prevent>
+                
+                <el-form-item label="店铺Logo">
+                  <div style="display:flex; align-items:center; gap:16px;">
+                    <div v-if="shopForm.logo" style="position:relative; border:1px dashed #ccc; padding:4px; border-radius:4px; background:#fafafa;">
+                      <img :src="shopForm.logo" style="max-height:60px; max-width:160px; display:block;" />
+                      <el-button type="danger" circle size="small" style="position:absolute; top:-10px; right:-10px; transform:scale(0.7);" @click="shopForm.logo = ''" title="移除Logo">
+                        <el-icon><Close /></el-icon>
+                      </el-button>
+                    </div>
+                    <label style="cursor:pointer; background:#f0f2f5; border:1px solid #dcdfe6; padding:8px 15px; border-radius:4px; font-size:14px; color:#606266; transition: 0.1s; display:inline-flex; align-items:center;">
+                      <el-icon style="margin-right:4px;"><Upload /></el-icon> 上传新Logo
+                      <input type="file" accept="image/png,image/jpeg,image/jpg,image/gif" style="display:none" @change="handleLogoUpload" />
+                    </label>
+                  </div>
+                </el-form-item>
+
+                <el-form-item label="开票签章">
+                  <div style="display:flex; align-items:center; gap:16px;">
+                    <div v-if="shopForm.stamp" style="position:relative; border:1px dashed #ccc; padding:4px; border-radius:4px; background:#fafafa;">
+                      <img :src="shopForm.stamp" style="max-height:60px; max-width:160px; display:block;" />
+                      <el-button type="danger" circle size="small" style="position:absolute; top:-10px; right:-10px; transform:scale(0.7);" @click="shopForm.stamp = ''" title="移除签章">
+                        <el-icon><Close /></el-icon>
+                      </el-button>
+                    </div>
+                    <label style="cursor:pointer; background:#f0f2f5; border:1px solid #dcdfe6; padding:8px 15px; border-radius:4px; font-size:14px; color:#606266; transition: 0.1s; display:inline-flex; align-items:center;">
+                      <el-icon style="margin-right:4px;"><Upload /></el-icon> 上传印章图片
+                      <input type="file" accept="image/png,image/gif" style="display:none" @change="handleStampUpload" />
+                    </label>
+                  </div>
+                  <div style="color:#909399; font-size:12px; margin-top:8px;">建议上传透明背景的 PNG 格式，最大 2MB。</div>
+                </el-form-item>
+
+                <!-- 新增：开票名字与核准名字 -->
+                <el-row :gutter="20">
+                  <el-col :span="12">
+                    <el-form-item label="开票名字">
+                      <el-input v-model="shopForm.invoiceName" placeholder="例如：张三" />
+                    </el-form-item>
+                  </el-col>
+                  <el-col :span="12">
+                    <el-form-item label="核准名字">
+                      <el-input v-model="shopForm.approverName" placeholder="例如：李四" />
+                    </el-form-item>
+                  </el-col>
+                </el-row>
+
+                <el-divider content-position="left">打印页底部文字</el-divider>
+                <el-form-item label="底部主文案">
+                  <el-input v-model="shopForm.footerThanks" placeholder="感谢您的支持与信任！" maxlength="30" show-word-limit />
+                </el-form-item>
+                <el-form-item label="底部副文案">
+                  <el-input v-model="shopForm.footerSub" placeholder="期待与您再次相遇，记录更多美好瞬间。" maxlength="40" show-word-limit />
+                </el-form-item>
+                <div style="color:#909399; font-size:12px; line-height:1.6; margin:-4px 0 14px 100px;">居中显示在每张打印单据的签名区下方；留空则隐藏对应行。</div>
+
+                <el-divider content-position="left">打印账单（热敏小票）</el-divider>
+                <el-form-item label="热敏纸规格">
+                  <el-radio-group v-model="shopForm.receiptPaper">
+                    <el-radio-button label="80">80mm</el-radio-button>
+                    <el-radio-button label="58">58mm</el-radio-button>
+                  </el-radio-group>
+                  <span style="color:#909399; font-size:12px; margin-left:12px;">宽度固定，长度按内容自动延伸</span>
+                </el-form-item>
+                <el-form-item label="小票字号">
+                  <el-radio-group v-model="shopForm.receiptFont">
+                    <el-radio-button label="small">小</el-radio-button>
+                    <el-radio-button label="normal">标准</el-radio-button>
+                    <el-radio-button label="large">大</el-radio-button>
+                  </el-radio-group>
+                </el-form-item>
+                <el-form-item label="显示服务项目">
+                  <el-switch v-model="shopForm.receiptShowItems" />
+                  <span style="color:#909399; font-size:12px; margin-left:12px;">关闭后只列收款记录与金额汇总</span>
+                </el-form-item>
+
+                <el-divider content-position="left">电子发票（扫码开票）</el-divider>
+                <el-form-item label="开票二维码">
+                  <el-switch v-model="shopForm.invoiceQrEnabled" />
+                  <span style="color:#909399; font-size:12px; margin-left:12px;">开启后在账单底部打印开票二维码</span>
+                </el-form-item>
+                <el-form-item label="开票链接">
+                  <el-input v-model="shopForm.invoiceQrUrl" type="textarea" :rows="3" placeholder="例如：https://平台开票页?amount={paid}&no={contractNo}" />
+                  <div style="color:#909399; font-size:12px; line-height:1.6; margin-top:4px;">
+                    可用变量：{amount} 应收总额、{paid} 已收金额、{contractNo} 单号、{customer} 客户、{shop} 店铺、{date} 日期；留空则不打印二维码。
+                  </div>
+                </el-form-item>
+
+                <el-form-item label="店铺名称">
+                  <el-input v-model="shopForm.name" placeholder="请输入店铺名称，例如：洁柠映像" maxlength="20" show-word-limit @keyup.enter="saveShopName" />
+                </el-form-item>
+                
+                <el-form-item>
+                  <el-button type="primary" @click="saveShopName">保存修改</el-button>
+                </el-form-item>
+              </el-form>
+            </div>
+          </el-tab-pane>
+
+          <el-tab-pane label="机位管理" name="booth">
+            <div style="margin-bottom:12px;"><el-button type="primary" @click="openEdit('booth', null)">+ 新增机位</el-button></div>
+            <el-table :data="booths" border stripe>
+              <el-table-column label="序号" type="index" width="70" /><el-table-column label="机位名称" prop="name" />
+              <el-table-column label="操作" width="180">
+                <template #default="{ row }"><el-button link type="primary" @click="openEdit('booth', row)">编辑</el-button><el-button link type="danger" @click="removeItem('booth', row)">删除</el-button></template>
+              </el-table-column>
+            </el-table>
+          </el-tab-pane>
+          
+          <el-tab-pane label="助理管理" name="staff">
+            <div style="margin-bottom:12px;"><el-button type="primary" @click="openEdit('staff', null)">+ 新增助理</el-button></div>
+            <el-table :data="staffs" border stripe>
+              <el-table-column label="序号" type="index" width="70" /><el-table-column label="助理姓名" prop="name" />
+              <el-table-column label="操作" width="180">
+                <template #default="{ row }"><el-button link type="primary" @click="openEdit('staff', row)">编辑</el-button><el-button link type="danger" @click="removeItem('staff', row)">删除</el-button></template>
+              </el-table-column>
+            </el-table>
+          </el-tab-pane>
+
+          <el-tab-pane label="套餐管理" name="package">
+            <div style="margin-bottom:12px;"><el-button type="primary" @click="openEdit('package', null)">+ 新增套餐</el-button></div>
+            <el-table :data="packages" border stripe>
+              <el-table-column label="序号" type="index" width="70" />
+              <el-table-column label="套餐名称" prop="name" width="200" />
+              <el-table-column label="套餐内容" prop="content" show-overflow-tooltip />
+              <el-table-column label="默认价格(元)" prop="price" width="130" />
+              <el-table-column label="操作" width="180">
+                <template #default="{ row }"><el-button link type="primary" @click="openEdit('package', row)">编辑</el-button><el-button link type="danger" @click="removeItem('package', row)">删除</el-button></template>
+              </el-table-column>
+            </el-table>
+          </el-tab-pane>
+
+          <el-tab-pane label="数据备份与本地存储" name="data">
+            <el-alert title="为了数据安全，您可以将所有数据直接保存到电脑的本地文件夹中，每次操作都会自动同步。" type="info" show-icon style="margin-bottom:20px;" :closable="false" />
+            <div style="margin-bottom: 20px;">
+              <el-button type="success" @click="bindFolder" :disabled="!isSupportFileSystem">
+                {{ isBound ? '🔄 重新绑定/授权数据文件夹' : '📁 绑定本地数据文件夹（推荐）' }}
+              </el-button>
+              <span style="margin-left:12px; color:#606266;">
+                当前状态：<el-tag :type="isBound ? 'success' : 'info'">{{ isBound ? '已绑定本地文件 (jn_photobooth_data.json)' : '未绑定（仅存于浏览器）' }}</el-tag>
+              </span>
+            </div>
+            <el-divider />
+            <div style="display:flex; gap:12px;">
+              <el-button type="primary" plain @click="exportData">📥 导出全量数据 (JSON)</el-button>
+              <el-button type="warning" plain @click="triggerImport">📤 导入备份数据覆盖</el-button>
+              <input type="file" ref="fileInput" accept=".json" style="display:none" @change="importData" />
+            </div>
+          </el-tab-pane>
+        </el-tabs>
+      </el-card>
+
+      <el-dialog v-model="editOpen" :title="editTitle" width="500px">
+        <el-form @submit.prevent>
+          <el-form-item :label="editType === 'booth' ? '机位名称' : editType === 'staff' ? '助理姓名' : '套餐名称'">
+            <el-input v-model="editName" @keyup.enter="saveEdit" />
+          </el-form-item>
+          <el-form-item v-if="editType === 'package'" label="套餐价格(元)">
+            <el-input-number v-model="editPrice" :min="0" style="width:100%" @keyup.enter="saveEdit" />
+          </el-form-item>
+          <el-form-item v-if="editType === 'package'" label="套餐内容">
+            <el-input v-model="editContent" type="textarea" :rows="4" placeholder="请输入套餐包含的具体内容，可换行" />
+          </el-form-item>
+        </el-form>
+        <template #footer><el-button @click="editOpen = false">取消</el-button><el-button type="primary" @click="saveEdit">保存</el-button></template>
+      </el-dialog>
+    </div>
+  `,
+  emits: ['shop-updated'],
+  setup(props, { emit }) {
+    const activeTab = ref('shop') 
+    const booths = ref([]), staffs = ref([]), packages = ref([])
+    const editOpen = ref(false), editType = ref('booth'), editId = ref(null), editName = ref(''), editPrice = ref(0), editContent = ref('')
+    
+    // 新增了 invoiceName 和 approverName
+    const shopForm = reactive({ name: '', logo: '', stamp: '', invoiceName: '', approverName: '', footerThanks: '', footerSub: '', receiptPaper: '80', receiptFont: 'normal', receiptShowItems: true, invoiceQrEnabled: false, invoiceQrUrl: '' })
+
+    const isSupportFileSystem = ref(typeof window.showDirectoryPicker === 'function');
+    const isBound = ref(!!fileHandle);
+    const fileInput = ref(null);
+
+    const editTitle = computed(() => {
+      const nameStr = editType.value === 'booth' ? '机位' : editType.value === 'staff' ? '助理' : '套餐'
+      return nameStr + (editId.value ? '编辑' : '新增')
+    })
+
+    const load = async () => { 
+      try {
+        const db = await DB.load(); 
+        shopForm.name = db.shopName || '洁柠映像'
+        shopForm.logo = db.shopLogo || ''
+        shopForm.stamp = db.stampUrl || ''
+        shopForm.invoiceName = db.invoiceName || '' // 读取
+        shopForm.approverName = db.approverName || '' // 读取
+        shopForm.footerThanks = db.footerThanks || ''
+        shopForm.footerSub = db.footerSub || ''
+        shopForm.receiptPaper = db.receiptPaper || '80'
+        shopForm.receiptFont = db.receiptFont || 'normal'
+        shopForm.receiptShowItems = db.receiptShowItems !== false
+        shopForm.invoiceQrEnabled = db.invoiceQrEnabled === true
+        shopForm.invoiceQrUrl = db.invoiceQrUrl || ''
+        booths.value = db.booths || []; staffs.value = db.staffs || []; packages.value = db.packages || [];
+      } catch(e) { console.error(e) }
+    }
+
+    const handleLogoUpload = (event) => {
+      const file = event.target.files[0]
+      if (!file) return
+      if (file.size > 2 * 1024 * 1024) return ElMessage.warning('图片大小不能超过 2MB')
+      const reader = new FileReader()
+      reader.onload = (e) => { shopForm.logo = e.target.result }
+      reader.readAsDataURL(file)
+      event.target.value = '' 
+    }
+
+    const handleStampUpload = (event) => {
+      const file = event.target.files[0]
+      if (!file) return
+      if (file.size > 2 * 1024 * 1024) return ElMessage.warning('图片大小不能超过 2MB')
+      const reader = new FileReader()
+      reader.onload = (e) => { shopForm.stamp = e.target.result }
+      reader.readAsDataURL(file)
+      event.target.value = '' 
+    }
+
+    const saveShopName = async () => {
+      const newName = shopForm.name.trim()
+      if (!newName) return ElMessage.warning('店铺名称不能为空')
+      const db = await DB.load()
+      db.shopName = newName
+      db.shopLogo = shopForm.logo
+      db.stampUrl = shopForm.stamp
+      db.invoiceName = shopForm.invoiceName
+      db.approverName = shopForm.approverName
+      db.footerThanks = shopForm.footerThanks
+      db.footerSub = shopForm.footerSub
+      db.receiptPaper = shopForm.receiptPaper
+      db.receiptFont = shopForm.receiptFont
+      db.receiptShowItems = shopForm.receiptShowItems
+      db.invoiceQrEnabled = shopForm.invoiceQrEnabled
+      db.invoiceQrUrl = shopForm.invoiceQrUrl
+      await DB.save(db)
+      emit('shop-updated')
+      ElMessage.success('店铺信息已更新')
+    }
+    
+    const bindFolder = async () => {
+      try {
+        const dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+        fileHandle = await dirHandle.getFileHandle('jn_photobooth_data.json', { create: true });
+        const db = await DB.load();
+        await DB.save(db);
+        isBound.value = true;
+        await idbHelper.set('folderDir', dirHandle);
+        ElMessage.success('绑定成功！此后所有修改会自动同步到该文件夹');
+      } catch (err) {
+        if (err.name !== 'AbortError') ElMessage.error('绑定文件夹失败：' + err.message);
+      }
+    }
+
+    const exportData = async () => {
+      const db = await DB.load();
+      const blob = new Blob([JSON.stringify(db, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${shopForm.name || '洁柠映像'}数据备份_${dayjs().format('YYYYMMDD_HHmmss')}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    const triggerImport = () => { if(fileInput.value) fileInput.value.click() }
+
+    const importData = (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = async (evt) => {
+        try {
+          const data = JSON.parse(evt.target.result);
+          if (!data.contracts) throw new Error('数据格式不正确');
+          await ElMessageBox.confirm('导入将覆盖当前所有数据，确定继续吗？', '警告', { type: 'warning' });
+          await DB.save(data);
+          ElMessage.success('数据导入成功，即将刷新页面');
+          setTimeout(() => window.location.reload(), 1000);
+        } catch (err) {
+          ElMessage.error('导入失败：' + err.message);
+        }
+        e.target.value = '';
+      };
+      reader.readAsText(file);
+    }
+
+    const openEdit = (type, row) => {
+      editType.value = type; editId.value = row ? row.id : null
+      editName.value = row ? row.name : ''; 
+      editPrice.value = row && row.price ? row.price : 0
+      editContent.value = row && row.content ? row.content : ''
+      editOpen.value = true
+    }
+    const syncContractNames = async (type, list) => {
+      const db = await DB.load(); let changed = false
+      db.contracts.forEach(c => {
+        if (type === 'booth') { const b = list.find(x => x.id === c.boothId); if (b && c.boothName !== b.name) { c.boothName = b.name; changed = true } }
+      })
+      if (changed) await DB.save(db)
+    }
+    const saveEdit = async () => {
+      const name = editName.value.trim(); if (!name) return ElMessage.warning('请输入名称')
+      const db = await DB.load(), list = editType.value === 'booth' ? db.booths : editType.value === 'staff' ? db.staffs : db.packages
+      if (list.find(x => x.name === name && x.id !== editId.value)) return ElMessage.warning('名称已存在')
+      
+      if (editId.value) { 
+        const item = list.find(x => x.id === editId.value)
+        if (item) { 
+          item.name = name; 
+          if (editType.value === 'package') {
+            item.price = Number(editPrice.value) 
+            item.content = editContent.value
+          } 
+        } 
+      } else { 
+        list.push({ 
+          id: Date.now(), 
+          name, 
+          ...(editType.value === 'package' ? { price: Number(editPrice.value), content: editContent.value } : {}) 
+        }) 
+      }
+      await DB.save(db); await syncContractNames(editType.value, list); editOpen.value = false; ElMessage.success('保存成功'); await load()
+    }
+    const removeItem = async (type, row) => {
+      const db = await DB.load(), list = type === 'booth' ? db.booths : type === 'staff' ? db.staffs : db.packages, idx = list.findIndex(x => x.id === row.id)
+      if (idx === -1) return
+      const used = type === 'package' ? false : db.contracts.some(c => type === 'booth' ? c.boothId === row.id : (c.staffIds && c.staffIds.includes(row.id)))
+      const doRemove = async () => { list.splice(idx, 1); await DB.save(db); ElMessage.success('已删除'); await load() }
+      if (used) ElMessageBox.confirm(`该${type === 'booth' ? '机位' : '助理'}已被合约使用，确认删除？`, '提示', { type: 'warning' }).then(doRemove).catch(() => {})
+      else doRemove()
+    }
+    
+    onMounted(load)
+    return { activeTab, shopForm, saveShopName, handleLogoUpload, handleStampUpload, booths, staffs, packages, editOpen, editType, editId, editName, editPrice, editContent, editTitle, openEdit, saveEdit, removeItem, isSupportFileSystem, isBound, bindFolder, fileInput, exportData, triggerImport, importData }
+  }
+}
+
+/* ===================== 收款登记 ===================== */
+const OrderPayment = {
+  template: `
+    <el-dialog v-model="open" title="收款登记" width="520px">
+      <el-form :model="form" label-width="120px">
+        <el-form-item label="合约单号"><el-input v-model="form.contractNo" disabled /></el-form-item>
+        <el-form-item label="客户"><el-input :model-value="form.customerName + ' ' + form.customerPhone" disabled /></el-form-item>
+        <el-form-item label="收款类型">
+          <el-select v-model="form.payType"><el-option label="定金" value="deposit" /><el-option label="尾款/结清" value="balance" /><el-option label="现场超时/增项" value="extra" /></el-select>
+        </el-form-item>
+        
+        <el-form-item label="本次收款金额">
+          <el-input-number v-model="form.payAmount" :min="0" :max="Math.max(0, form.balanceBefore - form.discountAmount)" @change="calcNewBalance" />
+        </el-form-item>
+        
+        <el-form-item label="尾款抹零">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <el-input-number v-model="form.discountAmount" :min="0" :max="Math.max(0, form.balanceBefore - form.payAmount)" @change="calcNewBalance" />
+            <span style="color:#f56c6c;font-size:13px;">减免零头，自动结清</span>
+          </div>
+        </el-form-item>
+        
+        <el-form-item label="收款方式">
+          <el-select v-model="form.payWay"><el-option label="微信" value="微信" /><el-option label="支付宝" value="支付宝" /><el-option label="现金" value="现金" /><el-option label="转账" value="转账" /></el-select>
+        </el-form-item>
+        <el-form-item label="原待收尾款"><el-input :model-value="form.balanceBefore" disabled /></el-form-item>
+        <el-form-item label="收款后剩余尾款">
+          <el-input :model-value="form.balanceAfter" disabled>
+            <template #append v-if="Number(form.balanceAfter) === 0 && Number(form.balanceBefore) > 0">
+              <span style="color:#67C23A; font-weight:bold;">已结清</span>
+            </template>
+          </el-input>
+        </el-form-item>
+        <el-form-item label="备注"><el-input v-model="form.remark" type="textarea" rows="2" /></el-form-item>
+      </el-form>
+      <template #footer>
+        <div style="display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;">
+          <el-button @click="open = false">取消</el-button>
+          <el-button type="info" plain @click="printDeposit">🖨️ 打印定金单</el-button>
+          <el-button type="info" plain @click="printSettle">🖨️ 打印尾款单</el-button>
+          <el-button type="primary" @click="submitPay">确认收款</el-button>
+        </div>
+      </template>
+    </el-dialog>
+  `,
+  emits: ['success'],
+  setup(props, { emit }) {
+    const open = ref(false)
+    const form = reactive({ 
+      contractId: null, contractNo: '', customerName: '', customerPhone: '', payType: 'deposit', 
+      payAmount: 0, discountAmount: 0, payWay: '微信', balanceBefore: 0, balanceAfter: 0, remark: '' 
+    })
+    
+    const openDialog = (row) => {
+      open.value = true; form.contractId = row.id; form.contractNo = row.contractNo; form.customerName = row.customerName; form.customerPhone = row.customerPhone; form.balanceBefore = Number(row.balanceAmount || 0); form.payAmount = 0; form.discountAmount = 0; form.balanceAfter = form.balanceBefore; form.remark = ''
+      form.payType = row.paidTotal > 0 ? 'balance' : 'deposit'
+    }
+    
+    const calcNewBalance = () => { 
+      const pay = Number(form.payAmount) || 0;
+      const discount = Number(form.discountAmount) || 0;
+      form.balanceAfter = Math.max(0, form.balanceBefore - pay - discount);
+    }
+    
+    const submitPay = async () => {
+      if (!form.payAmount && !form.discountAmount) return ElMessage.warning('请输入本次收款或抹零金额')
+      if (Number(form.payAmount) < 0 || Number(form.discountAmount) < 0) return ElMessage.warning('金额不能为负数')
+      
+      if (Number(form.payAmount) + Number(form.discountAmount) > form.balanceBefore) {
+        return ElMessage.warning(`收款与抹零总额不能大于待收尾款（${form.balanceBefore}元）`)
+      }
+      
+      const db = await DB.load(); 
+      const c = db.contracts.find(x => x.id === form.contractId); 
+      if (!c) return
+      if (c.status === 'refund') return ElMessage.warning('已退款合约无法收款')
+      
+      const discountVal = Number(form.discountAmount) || 0;
+      if (discountVal > 0) {
+        c.totalAmount = Math.max(0, Number(c.totalAmount) - discountVal);
+        c.settleDiscount = (Number(c.settleDiscount) || 0) + discountVal;
+      }
+
+      c.paidTotal = Number(c.paidTotal || 0) + Number(form.payAmount)
+      c.balanceAmount = Math.max(0, Number(c.totalAmount) - c.paidTotal)
+      
+      if (c.balanceAmount <= 0) c.status = 'settled'
+      else if (c.status === 'draft') c.status = 'deposit_paid'
+      
+      let remarkStr = form.remark;
+      if (discountVal > 0) {
+        remarkStr = (remarkStr ? remarkStr + ' ' : '') + `[结账抹零 ${discountVal}元]`;
+      }
+
+      db.payments.push({ 
+        id: Date.now(), contractId: c.id, contractNo: c.contractNo, 
+        payType: form.payType, payAmount: Number(form.payAmount), discountAmount: discountVal,
+        payWay: form.payWay, remark: remarkStr, createTime: dayjs().format('YYYY-MM-DD HH:mm:ss') 
+      })
+      
+      await DB.save(db)
+      ElMessage.success(c.balanceAmount <= 0 ? '收款成功，订单已结清' : '收款登记成功')
+      open.value = false; emit('success')
+    }
+    
+    const printDeposit = () => openPrint('/print-deposit', form.contractId)
+    const printSettle = () => openPrint('/print-settle', form.contractId)
+    return { open, form, openDialog, calcNewBalance, submitPay, printDeposit, printSettle }
+  }
+}
+
+/* ===================== 履约核销 ===================== */
+const OrderVerify = {
+  template: `
+    <el-dialog v-model="open" title="履约核销" width="540px">
+      <el-form :model="form" label-width="120px">
+        <el-form-item label="合约单号"><el-input v-model="form.contractNo" disabled /></el-form-item>
+        <el-form-item label="机位"><el-input v-model="form.boothName" disabled /></el-form-item>
+        <el-form-item label="原定时段"><el-input :model-value="form.startTime + ' ~ ' + form.endTime" disabled /></el-form-item>
+        <el-form-item label="实际开始时间"><el-time-picker v-model="form.realStartTime" format="HH:mm" value-format="HH:mm" style="width:100%" @change="calcOvertime" /></el-form-item>
+        <el-form-item label="实际结束时间"><el-time-picker v-model="form.realEndTime" format="HH:mm" value-format="HH:mm" style="width:100%" @change="calcOvertime" /></el-form-item>
+        <div style="color:#909399; font-size:12px; line-height:1.6; margin:-12px 0 12px 120px;">超时费按「实际时长 − 套餐时长」计算，开始延后、结束相应延后不计超时。</div>
+        
+        <el-form-item label="超时单价">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <el-input-number v-model="form.overtimePrice" :min="0" :step="10" style="width:140px;" @change="calcOvertime" />
+            <span style="color:#909399; font-size:13px;">元/半小时（下单时填写的可在此修改）</span>
+          </div>
+        </el-form-item>
+        
+        <el-form-item label="超时时长">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <el-input :model-value="form.overtimeHour" disabled style="width:100px;" />
+            <span v-if="Number(form.overtimeHour) > 0" style="color:#409eff; font-size:13px;">
+              ({{ formatOvertimeDisplay(form.overtimeHour) }})
+            </span>
+          </div>
+        </el-form-item>
+        
+        <el-form-item label="超时费用"><el-input :model-value="form.overtimeFee" disabled /></el-form-item>
+        <el-form-item label="超时费处理">
+          <el-checkbox v-model="form.addOvertimeToBalance" :disabled="!Number(form.overtimeFee)">计入待收尾款</el-checkbox>
+          <span style="color:#909399;font-size:12px;margin-left:6px;">不勾选则现场单独收款</span>
+        </el-form-item>
+        <el-form-item label="底片网盘链接"><el-input v-model="form.photoLink" placeholder="选填，填写后尾款单自动生成二维码" /></el-form-item>
+        <el-form-item label="交付勾选"><el-checkbox v-model="form.deliverOk">底片、物料全部交付完成</el-checkbox></el-form-item>
+        <el-form-item label="现场备注"><el-input v-model="form.remark" type="textarea" rows="2" /></el-form-item>
+      </el-form>
+      <template #footer><el-button @click="open = false">取消</el-button><el-button type="primary" @click="submitVerify">确认核销</el-button></template>
+    </el-dialog>
+  `,
+  emits: ['success'],
+  setup(props, { emit }) {
+    const open = ref(false)
+    const form = reactive({ contractId: null, contractNo: '', boothName: '', startTime: '', endTime: '', realStartTime: '', realEndTime: '', overtimePrice: 0, overtimeHour: 0, overtimeFee: 0, addOvertimeToBalance: true, photoLink: '', deliverOk: false, remark: '' })
+    
+    const openDialog = (row) => {
+      open.value = true; form.contractId = row.id; form.contractNo = row.contractNo; form.boothName = row.boothName; form.startTime = row.startTime; form.endTime = row.endTime; 
+      form.overtimePrice = Number(row.overtimePrice || 0); 
+      form.realStartTime = row.realStartTime || row.startTime || ''; form.realEndTime = ''; form.overtimeHour = 0; form.overtimeFee = 0; form.addOvertimeToBalance = true; form.photoLink = row.photoLink || ''; form.deliverOk = false; form.remark = ''
+    }
+    
+    const formatOvertimeDisplay = (hours) => {
+      const h = Number(hours);
+      if (h === 0) return '0';
+      const totalMins = Math.round(h * 60);
+      const hr = Math.floor(totalMins / 60);
+      const min = totalMins % 60;
+      if (hr > 0 && min > 0) return `${hr}小时${min}分钟`;
+      if (hr > 0) return `${hr}小时`;
+      return `${min}分钟`;
+    }
+
+    const calcOvertime = () => {
+      if (!form.realStartTime || !form.realEndTime || !form.startTime || !form.endTime) {
+        form.overtimeHour = 0
+        form.overtimeFee = 0
+        return
+      }
+      // 套餐时长 = 原定结束 - 原定开始（跨天自动按次日）
+      const planStart = dayjs(`2000-01-01 ${form.startTime}`)
+      let planEnd = dayjs(`2000-01-01 ${form.endTime}`)
+      if (planEnd.isBefore(planStart)) planEnd = planEnd.add(1, 'day')
+      const planMinutes = planEnd.diff(planStart, 'minute')
+
+      // 实际时长 = 实际结束 - 实际开始（跨天自动按次日）
+      const realStart = dayjs(`2000-01-01 ${form.realStartTime}`)
+      let realEnd = dayjs(`2000-01-01 ${form.realEndTime}`)
+      if (realEnd.isBefore(realStart)) realEnd = realEnd.add(1, 'day')
+      const realMinutes = realEnd.diff(realStart, 'minute')
+
+      // 超时只算“实际时长超出套餐时长”的部分；开始晚了、结束同步延后不产生超时
+      const diffMinutes = realMinutes - planMinutes
+      if (diffMinutes > 0) {
+        form.overtimeHour = (diffMinutes / 60).toFixed(4)
+        const fee = (diffMinutes / 30) * form.overtimePrice
+        form.overtimeFee = fee.toFixed(2)
+      } else {
+        form.overtimeHour = 0
+        form.overtimeFee = 0
+      }
+    }
+
+    const submitVerify = async () => {
+      if (!form.realStartTime) return ElMessage.warning('请填写实际开始时间')
+      if (!form.realEndTime) return ElMessage.warning('请填写实际结束时间')
+      if (!form.deliverOk) return ElMessage.warning('请勾选交付完成后再核销')
+      const db = await DB.load(); const c = db.contracts.find(x => x.id === form.contractId); if (!c) return
+      if (['verified', 'settled'].includes(c.status)) return ElMessage.warning('该合约已核销')
+      if (c.status === 'refund') return ElMessage.warning('已退款合约无法核销')
+      const otFee = Number(form.overtimeFee) || 0
+      
+      c.addOvertimeToBalance = !!form.addOvertimeToBalance;
+      c.overtimeFee = otFee;
+      
+      if (otFee > 0 && c.addOvertimeToBalance) { 
+        c.totalAmount = Number(c.totalAmount) + otFee; 
+        c.balanceAmount = Number(c.balanceAmount) + otFee 
+      }
+      
+      c.status = 'verified'; 
+      c.realStartTime = form.realStartTime; 
+      c.realEndTime = form.realEndTime; 
+      c.overtimeHour = Number(form.overtimeHour); 
+      c.overtimePrice = Number(form.overtimePrice) || 0; 
+      c.photoLink = form.photoLink; 
+      c.deliverOk = form.deliverOk; 
+      c.verifyRemark = form.remark;
+      
+      await DB.save(db); 
+      ElMessage.success(otFee > 0 && c.addOvertimeToBalance ? '核销完成，超时费已计入待收尾款' : '核销完成'); 
+      open.value = false; 
+      emit('success')
+    }
+    return { open, form, openDialog, calcOvertime, submitVerify, formatOvertimeDisplay }
+  }
+}
+
+/* ===================== 退款登记 ===================== */
+const OrderRefund = {
+  template: `
+    <el-dialog v-model="open" title="退款登记" width="520px">
+      <el-form :model="form" label-width="120px">
+        <el-form-item label="合约单号"><el-input v-model="form.contractNo" disabled /></el-form-item>
+        <el-form-item label="客户"><el-input :model-value="form.customerName + ' ' + form.customerPhone" disabled /></el-form-item>
+        <el-form-item label="原合约总额"><el-input :model-value="form.totalAmount" disabled /></el-form-item>
+        <el-form-item label="已收金额"><el-input :model-value="form.paidAmount" disabled /></el-form-item>
+        <el-form-item label="本次退款金额"><el-input-number v-model="form.refundAmount" :min="0" :max="form.paidAmount" /></el-form-item>
+        <el-form-item label="退款方式">
+          <el-select v-model="form.refundWay"><el-option label="微信" value="微信" /><el-option label="支付宝" value="支付宝" /><el-option label="银行卡" value="银行卡" /><el-option label="现金" value="现金" /></el-select>
+        </el-form-item>
+        <el-form-item label="退款原因">
+          <el-select v-model="form.refundReasonType"><el-option label="客户主动取消" value="客户主动取消预约" /><el-option label="商家原因无法履约" value="商家原因无法履约" /><el-option label="协商改期转档" value="协商改期转档" /><el-option label="其他" value="其他" /></el-select>
+        </el-form-item>
+        <el-form-item v-if="form.refundReasonType === '协商改期转档'" label="新合约单号"><el-input v-model="form.newContractNo" placeholder="选填" /></el-form-item>
+        <el-form-item label="备注"><el-input v-model="form.remark" type="textarea" rows="2" /></el-form-item>
+      </el-form>
+      <template #footer>
+        <div style="display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;">
+          <el-button @click="open = false">取消</el-button>
+          <el-button type="info" plain @click="printRefund">🖨️ 打印退款单</el-button>
+          <el-button type="danger" @click="submitRefund">确认退款</el-button>
+        </div>
+      </template>
+    </el-dialog>
+  `,
+  emits: ['success'],
+  setup(props, { emit }) {
+    const open = ref(false)
+    const form = reactive({ contractId: null, contractNo: '', customerName: '', customerPhone: '', totalAmount: 0, paidAmount: 0, refundAmount: 0, refundWay: '微信', refundReasonType: '客户主动取消预约', newContractNo: '', remark: '' })
+    const openDialog = (row) => {
+      open.value = true; form.contractId = row.id; form.contractNo = row.contractNo; form.customerName = row.customerName; form.customerPhone = row.customerPhone; form.totalAmount = Number(row.totalAmount); form.paidAmount = Number(row.paidTotal || 0); form.refundAmount = 0; form.refundWay = '微信'; form.refundReasonType = '客户主动取消预约'; form.newContractNo = ''; form.remark = ''
+    }
+    const submitRefund = async () => {
+      if (!form.refundAmount || Number(form.refundAmount) <= 0) return ElMessage.warning('请输入本次退款金额')
+      const db = await DB.load(); const c = db.contracts.find(x => x.id === form.contractId); if (!c) return
+      c.paidTotal = Math.max(0, Number(c.paidTotal) - Number(form.refundAmount)); c.balanceAmount = Number(c.totalAmount) - c.paidTotal; c.status = 'refund'
+      db.refunds.push({ id: Date.now(), contractId: c.id, contractNo: c.contractNo, refundAmount: Number(form.refundAmount), refundWay: form.refundWay, refundReasonType: form.refundReasonType, newContractNo: form.newContractNo, remark: form.remark, createTime: dayjs().format('YYYY-MM-DD HH:mm:ss') })
+      await DB.save(db); ElMessage.success('退款完成，机位已释放'); open.value = false; emit('success')
+    }
+    const printRefund = () => openPrint('/print-refund', form.contractId)
+    return { open, form, openDialog, submitRefund, printRefund }
+  }
+}
+
+/* ===================== 档期日历看板 ===================== */
+const CalendarBoard = {
+  components: { OrderPayment, OrderVerify, OrderRefund },
+  template: `
+    <div class="page-wrap">
+      <el-card>
+        <template #header>
+          <div class="header-row">
+            <div style="display:flex; align-items:center; gap:16px;">
+              <span style="font-size:16px; font-weight:bold;">档期日历看板</span>
+              <el-radio-group v-model="viewMode" size="small">
+                <el-radio-button label="month">月视图</el-radio-button>
+                <el-radio-button label="week">周视图</el-radio-button>
+              </el-radio-group>
+            </div>
+            <div style="display:flex; align-items:center; gap:12px;">
+              <el-date-picker
+                v-model="pickerValue"
+                :type="viewMode === 'month' ? 'month' : 'week'"
+                :format="viewMode === 'month' ? 'YYYY年MM月' : 'YYYY年第ww周'"
+                placeholder="选择日期"
+                :clearable="false"
+                style="width: 160px;"
+              />
+              <el-button-group>
+                <el-button icon="ArrowLeft" @click="prev">上一{{ viewMode === 'month' ? '月' : '周' }}</el-button>
+                <el-button @click="next">下一{{ viewMode === 'month' ? '月' : '周' }}<el-icon class="el-icon--right"><ArrowRight /></el-icon></el-button>
+              </el-button-group>
+              <el-button type="primary" @click="goToday">回到今天</el-button>
+            </div>
+          </div>
+        </template>
+        
+        <div class="calendar-wrapper" v-loading="loading">
+          <div class="calendar-header">
+            <div v-for="w in ['日', '一', '二', '三', '四', '五', '六']" :key="w">星期{{ w }}</div>
+          </div>
+          
+          <div class="calendar-grid">
+            <div 
+              v-for="(day, idx) in displayDays" 
+              :key="idx" 
+              class="calendar-day"
+              :class="{ 
+                'is-today': day.dateStr === todayStr,
+                'is-other-month': viewMode === 'month' && day.month !== currentMonth
+              }"
+              @click="handleCreate(day.dateStr)"
+            >
+              <div class="day-header">
+                <div>
+                  <div class="day-solar">{{ day.dayNum }}</div>
+                  <div class="day-lunar">{{ day.lunar }}</div>
+                </div>
+                <div v-if="day.dateStr === todayStr" style="color:#67c23a; font-size:12px; font-weight:bold;">今天</div>
+              </div>
+              
+              <div class="day-orders">
+                <div 
+                  v-for="item in getDayList(day.dateStr)" 
+                  :key="item.id" 
+                  class="order-card"
+                  :class="'status-' + item.status"
+                  @click.stop="openDetail(item)" 
+                  :title="item.startTime + '-' + item.endTime + ' | ' + item.customerName + ' | ' + item.boothName"
+                >
+                  <div class="oc-title">
+                    <span>{{ item.customerName }}</span>
+                    <span class="oc-time">{{ item.startTime }}</span>
+                  </div>
+                  <div class="oc-booth">{{ item.boothName }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </el-card>
+
+      <el-dialog v-model="detailOpen" title="预约详情" width="650px">
+        <div v-if="currentRow">
+          <p><b>合约号：</b>{{ currentRow.contractNo }}</p>
+          <p><b>客户：</b>{{ currentRow.customerName }} {{ currentRow.customerPhone }}</p>
+          <p><b>机位：</b>{{ currentRow.boothName }}</p>
+          <p><b>助理：</b>{{ currentRow.staffName || '-' }}</p>
+          <p><b>活动：</b>{{ currentRow.eventType }} {{ currentRow.eventDate }} {{ currentRow.startTime }}~{{ currentRow.endTime }}</p>
+          <p v-if="currentRow.realStartTime || currentRow.realEndTime"><b>实际：</b>{{ currentRow.realStartTime || '未记录' }} ~ {{ currentRow.realEndTime || '未记录' }}</p>
+          <p><b>金额：</b>总额 {{ currentRow.totalAmount }}｜已收 {{ currentRow.paidTotal }}｜待收尾款 {{ currentRow.balanceAmount }}</p>
+          <p><b>状态：</b><el-tag :type="STATUS_TAG[currentRow.status]">{{ STATUS[currentRow.status] }}</el-tag></p>
+          <p v-if="currentRow.verifyRemark" style="margin-top: 8px;"><b>现场备注：</b><span style="color: #f56c6c;">{{ currentRow.verifyRemark }}</span></p>
+        </div>
+        <template #footer>
+          <div style="display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;">
+            <el-button @click="detailOpen=false">关闭</el-button>
+            <el-button type="primary" @click="paymentRef.openDialog(currentRow)" v-if="currentRow && currentRow.status !== 'refund'">收款</el-button>
+            <el-button type="success" @click="verifyRef.openDialog(currentRow)" v-if="currentRow && ['deposit_paid','wait_verify'].includes(currentRow.status)">核销</el-button>
+            <el-button type="danger" @click="refundRef.openDialog(currentRow)" v-if="currentRow && !['refund','settled'].includes(currentRow.status)">退款</el-button>
+            <el-button type="info" plain @click="printDeposit(currentRow)">打印定金单</el-button>
+            <el-button type="info" plain @click="printSettle(currentRow)" v-if="currentRow && currentRow.status !== 'draft'">打印尾款单</el-button>
+            <el-button type="info" plain @click="printRefund(currentRow)" v-if="currentRow && currentRow.status === 'refund'">打印退款单</el-button>
+            <el-button type="info" plain @click="printReceipt(currentRow)">打印账单</el-button>
+          </div>
+        </template>
+      </el-dialog>
+      
+      <OrderPayment ref="paymentRef" @success="fetchBoard" /><OrderVerify ref="verifyRef" @success="fetchBoard" /><OrderRefund ref="refundRef" @success="fetchBoard" />
+    </div>
+  `,
+  setup() {
+    const router = useRouter()
+    const loading = ref(false)
+    const sourceList = ref([]) 
+    const detailOpen = ref(false)
+    const currentRow = ref(null)
+    const paymentRef = ref(null), verifyRef = ref(null), refundRef = ref(null)
+    
+    const viewMode = ref('month') 
+    const currentDate = ref(dayjs().format('YYYY-MM-DD'))
+    const todayStr = dayjs().format('YYYY-MM-DD')
+    
+    const currentMonth = computed(() => dayjs(currentDate.value).month() + 1)
+    
+    const pickerValue = computed({
+      get: () => currentDate.value,
+      set: (val) => {
+        if (val) {
+          currentDate.value = dayjs(val).format('YYYY-MM-DD')
+        }
+      }
+    })
+
+    const displayDays = computed(() => {
+      const days = []
+      if (viewMode.value === 'month') {
+        const startOfMonth = dayjs(currentDate.value).startOf('month')
+        const startDay = startOfMonth.day() 
+        const daysInMonth = dayjs(currentDate.value).daysInMonth()
+        const totalCells = Math.ceil((startDay + daysInMonth) / 7) * 7
+        const firstCellDate = startOfMonth.subtract(startDay, 'day')
+        
+        for (let i = 0; i < totalCells; i++) {
+          const d = firstCellDate.add(i, 'day')
+          days.push(buildDayObj(d))
+        }
+      } else {
+        const startOfWeek = dayjs(currentDate.value).startOf('week')
+        for (let i = 0; i < 7; i++) {
+          const d = startOfWeek.add(i, 'day')
+          days.push(buildDayObj(d))
+        }
+      }
+      return days
+    })
+
+    const buildDayObj = (d) => {
+      const lunar = Lunar.fromDate(d.toDate())
+      let lunarStr = lunar.getDayInChinese() === '初一' ? lunar.getMonthInChinese() + '月' : lunar.getDayInChinese()
+      return {
+        dateStr: d.format('YYYY-MM-DD'),
+        dayNum: d.date(),
+        month: d.month() + 1,
+        lunar: lunarStr
+      }
+    }
+
+    const prev = () => {
+      currentDate.value = viewMode.value === 'month' 
+        ? dayjs(currentDate.value).subtract(1, 'month').format('YYYY-MM-DD')
+        : dayjs(currentDate.value).subtract(1, 'week').format('YYYY-MM-DD')
+    }
+    const next = () => {
+      currentDate.value = viewMode.value === 'month' 
+        ? dayjs(currentDate.value).add(1, 'month').format('YYYY-MM-DD')
+        : dayjs(currentDate.value).add(1, 'week').format('YYYY-MM-DD')
+    }
+    const goToday = () => { currentDate.value = todayStr }
+
+    const handleCreate = (dateStr) => {
+      router.push({ path: '/contract', query: { date: dateStr } })
+    }
+
+    const getDayList = (dateStr) => {
+      return sourceList.value.filter(o => o.eventDate === dateStr)
+    }
+
+    const openDetail = (row) => { currentRow.value = row; detailOpen.value = true }
+    const printDeposit = (row) => openPrint('/print-deposit', row.id)
+    const printSettle = (row) => openPrint('/print-settle', row.id)
+    const printRefund = (row) => openPrint('/print-refund', row.id)
+    const printReceipt = (row) => openPrint('/print-receipt', row.id)
+    
+    const fetchBoard = async () => {
+      loading.value = true; 
+      try {
+        const db = await DB.load(); 
+        const start = displayDays.value[0].dateStr
+        const end = displayDays.value[displayDays.value.length - 1].dateStr
+        sourceList.value = db.contracts.filter(c => c.eventDate >= start && c.eventDate <= end && c.status !== 'refund')
+      } catch(e) { console.error(e); } 
+      finally { loading.value = false; }
+    }
+    
+    watch([currentDate, viewMode], fetchBoard); 
+    onMounted(fetchBoard)
+    
+    return { 
+      loading, sourceList, detailOpen, currentRow, paymentRef, verifyRef, refundRef, 
+      viewMode, currentDate, todayStr, currentMonth, pickerValue, displayDays, 
+      prev, next, goToday, handleCreate, getDayList, openDetail, printDeposit, printSettle, printRefund, printReceipt, fetchBoard, 
+      STATUS, STATUS_TAG 
+    }
+  }
+}
+
+/* ===================== 新建/编辑合约 ===================== */
+const ContractForm = {
+  template: `
+    <div class="page-wrap">
+      <el-card>
+        <template #header>{{ form.id ? '编辑预约合约' : '新建预约合约' }}</template>
+        <el-form :model="form" label-width="120px">
+          <el-row :gutter="16">
+            <el-col :span="12"><el-form-item label="客户姓名"><el-input v-model="form.customerName" placeholder="必填" /></el-form-item></el-col>
+            <el-col :span="12"><el-form-item label="客户电话"><el-input v-model="form.customerPhone" placeholder="选填" /></el-form-item></el-col>
+            <el-col :span="12">
+              <el-form-item label="活动类型"><el-select v-model="form.eventType"><el-option label="婚礼" value="婚礼" /><el-option label="生日" value="生日" /><el-option label="商演" value="商演" /><el-option label="其他" value="其他" /></el-select></el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="机位">
+                <el-select v-model="form.boothId" filterable allow-create default-first-option placeholder="选择或输入新机位" style="width:100%" @change="onBoothChange">
+                  <el-option v-for="b in boothList" :key="b.id" :label="b.name" :value="b.id" />
+                </el-select>
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="驻场助理">
+                <el-select v-model="form.staffIds" multiple filterable allow-create default-first-option placeholder="选择或输入驻场助理" style="width:100%" @change="onStaffChange">
+                  <el-option v-for="s in staffList" :key="s.id" :label="s.name" :value="s.id" />
+                </el-select>
+              </el-form-item>
+            </el-col>
+            <el-col :span="12"><el-form-item label="活动日期"><el-date-picker v-model="form.eventDate" value-format="YYYY-MM-DD" placeholder="选择日期" style="width:100%" /></el-form-item></el-col>
+            <el-col :span="12"><el-form-item label="开始时间"><el-time-picker v-model="form.startTime" format="HH:mm" value-format="HH:mm" placeholder="开始时间" style="width:100%" /></el-form-item></el-col>
+            <el-col :span="12"><el-form-item label="结束时间"><el-time-picker v-model="form.endTime" format="HH:mm" value-format="HH:mm" placeholder="结束时间" style="width:100%" /></el-form-item></el-col>
+            
+            <el-col :span="12">
+              <el-form-item label="进场提前">
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <el-input-number v-model="form.prepareMinute" :min="0" style="width:120px" />
+                  <span style="color:#909399;font-size:13px;">分钟</span>
+                </div>
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="超时单价">
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <el-input-number v-model="form.overtimePrice" :min="0" style="width:120px" />
+                  <span style="color:#909399;font-size:13px;">元/半小时</span>
+                </div>
+              </el-form-item>
+            </el-col>
+            
+            <el-col :span="24"><el-form-item label="活动地址"><el-input v-model="form.eventAddress" placeholder="选填" /></el-form-item></el-col>
+          </el-row>
+
+          <el-divider>套餐及附加品明细</el-divider>
+          <div style="margin-bottom:8px; display:flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+            <span style="color:#606266;font-size:13px;">快捷添加：</span>
+            <el-button v-for="pkg in packageList" :key="pkg.id" size="small" @click="quickAdd(pkg.name, pkg.price, pkg.content)">{{ pkg.name }}</el-button>
+            <el-button size="small" type="primary" plain @click="quickAdd('附加配件/物料', 0, '', 'addon')">+ 附加品</el-button>
+          </div>
+          
+          <el-table :data="form.items" border empty-text="暂无明细，请从上方快捷添加或手动新增">
+            <el-table-column label="项目名称">
+              <template #default="{ row }">
+                <el-input v-model="row.name" placeholder="项目名称" />
+                <el-input v-model="row.content" type="textarea" :rows="2" placeholder="套餐内容/备注（选填），可换行" style="margin-top:4px; font-size:12px;" />
+              </template>
+            </el-table-column>
+            <el-table-column label="单价" width="180"><template #default="{ row }"><el-input-number v-model="row.price" :min="0" @change="calcTotal" /></template></el-table-column>
+            <el-table-column label="数量" width="180"><template #default="{ row }"><el-input-number v-model="row.qty" :min="1" @change="calcTotal" /></template></el-table-column>
+            <el-table-column label="小计" width="120"><template #default="{ row }">{{ (Number(row.price) * Number(row.qty)).toFixed(2) }}</template></el-table-column>
+            <el-table-column label="操作" width="90"><template #default="{ $index }"><el-button link type="danger" @click="removeItem($index)">删除</el-button></template></el-table-column>
+          </el-table>
+          <el-button style="margin:8px 0" @click="form.items.push({ name: '', price: 0, qty: 1, content: '', kind: 'addon' })">+ 新增自定义项目</el-button>
+
+          <el-form-item label="原价总计：">
+            <el-input :model-value="form.originalAmount" disabled style="width: 180px;" />
+          </el-form-item>
+          
+          <el-form-item label="优惠方式：">
+            <el-radio-group v-model="form.discountType" @change="calcTotal">
+              <el-radio label="none">无优惠</el-radio>
+              <el-radio label="percentage">百分比折扣</el-radio>
+              <el-radio label="amount">直接减免</el-radio>
+            </el-radio-group>
+          </el-form-item>
+          
+          <el-form-item label="折扣/减免值：" v-if="form.discountType !== 'none'">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <template v-if="form.discountType === 'percentage'">
+                <el-input-number v-model="form.discountRate" :min="0" :max="10" :step="0.1" :precision="1" @change="calcTotal" />
+                <span style="color:#909399;font-size:13px;">折 (例如 8.8 表示打88折)</span>
+              </template>
+              <template v-if="form.discountType === 'amount'">
+                <el-input-number v-model="form.discountAmount" :min="0" :max="Number(form.originalAmount)" @change="calcTotal" />
+                <span style="color:#909399;font-size:13px;">元 (直接减免金额)</span>
+              </template>
+              <span v-if="Number(form.discountValue) > 0" style="color:#f56c6c;font-size:13px;margin-left:10px;">
+                (实际优惠 ¥ {{ Number(form.discountValue).toFixed(2) }})
+              </span>
+            </div>
+          </el-form-item>
+
+          <el-form-item label="折后总金额：">
+            <div style="display:flex; align-items:center; gap:16px;">
+              <el-input :model-value="form.totalAmount" disabled style="width: 180px;" />
+              <span style="font-weight:bold; color:#409eff;">大写：{{ formatUppercase(form.totalAmount) }}</span>
+            </div>
+          </el-form-item>
+          <el-form-item label="已收金额："><el-input :model-value="form.paidTotal" disabled style="width: 180px;" /></el-form-item>
+          <el-form-item label="待收尾款：">
+            <div style="display:flex; align-items:center; gap:16px;"><el-input :model-value="form.balanceAmount" disabled style="width: 180px;" /><span style="font-weight:bold; color:#f56c6c;">大写：{{ formatUppercase(form.balanceAmount) }}</span></div>
+          </el-form-item>
+          <el-form-item label="备注"><el-input v-model="form.remark" type="textarea" rows="2" /></el-form-item>
+          <el-form-item><el-button @click="$router.back()">返回</el-button><el-button type="primary" @click="submit">保存</el-button></el-form-item>
+        </el-form>
+      </el-card>
+    </div>
+  `,
+  setup() {
+    const route = useRoute(), router = useRouter(), boothList = ref([]), staffList = ref([]), packageList = ref([])
+    const form = reactive({ 
+      id: null, contractNo: '', customerName: '', customerPhone: '', eventType: '婚礼', boothId: null, boothName: '', 
+      staffIds: [], staffName: '',
+      eventDate: '', startTime: '', endTime: '', prepareMinute: 60, eventAddress: '', 
+      overtimePrice: 300, 
+      remark: '', 
+      originalAmount: 0, discountType: 'none', discountRate: 10, discountAmount: 0, discountValue: 0, totalAmount: 0, paidTotal: 0, balanceAmount: 0, status: 'draft', 
+      items: [] 
+    })
+    
+    const calcTotal = () => { 
+      let sum = 0; 
+      if(form.items) form.items.forEach(i => sum += Number(i.price) * Number(i.qty)); 
+      form.originalAmount = sum.toFixed(2); 
+      
+      let finalAmount = sum;
+      let discountVal = 0;
+      
+      if (form.discountType === 'percentage') {
+        let rate = Number(form.discountRate);
+        if (isNaN(rate) || rate < 0) rate = 0;
+        if (rate > 10) rate = 10;
+        finalAmount = sum * (rate / 10);
+        discountVal = sum - finalAmount;
+      } else if (form.discountType === 'amount') {
+        discountVal = Number(form.discountAmount) || 0;
+        finalAmount = Math.max(0, sum - discountVal);
+      }
+      
+      form.discountValue = discountVal.toFixed(2);
+      form.totalAmount = finalAmount.toFixed(2); 
+      form.balanceAmount = Math.max(0, Number(form.totalAmount) - Number(form.paidTotal || 0)).toFixed(2); 
+    }
+    
+    const quickAdd = (name, price, content, kind = 'package') => { 
+      if(!form.items) form.items=[];
+      form.items.push({ name, price, qty: 1, content: content || '', kind }); 
+      calcTotal() 
+    }
+    const removeItem = (index) => { form.items.splice(index, 1); calcTotal() }
+    
+    const onBoothChange = async (val) => {
+      if (typeof val === 'string' && val.trim()) {
+        const name = val.trim(), db = await DB.load(); let booth = db.booths.find(b => b.name === name)
+        if (!booth) { booth = { id: Date.now(), name }; db.booths.push(booth); await DB.save(db); boothList.value = db.booths; ElMessage.success(`已新增机位「${name}」`) }
+        form.boothId = booth.id; form.boothName = booth.name
+      } else { const booth = boothList.value.find(b => b.id === val); form.boothName = booth ? booth.name : '' }
+    }
+
+    const onStaffChange = (vals) => {
+      const names = vals.map(val => {
+        if (typeof val === 'string') return val.trim();
+        const s = staffList.value.find(x => x.id === val);
+        return s ? s.name : '';
+      }).filter(Boolean);
+      form.staffName = names.join('、'); 
+    }
+
+    const submit = async () => {
+      if (!form.customerName || !form.customerName.trim()) return ElMessage.warning('请填写客户姓名')
+      if (!form.boothId) return ElMessage.warning('请选择或输入机位')
+      if (!form.eventDate) return ElMessage.warning('请选择活动日期')
+      if (!form.startTime || !form.endTime) return ElMessage.warning('请选择时段')
+      if (form.startTime >= form.endTime) return ElMessage.warning('结束时间必须晚于开始时间')
+      
+      const db = await DB.load()
+      
+      const finalStaffIds = [];
+      const finalStaffNames = [];
+      let staffAdded = false;
+      if (form.staffIds && form.staffIds.length) {
+        for (let i = 0; i < form.staffIds.length; i++) {
+          const val = form.staffIds[i];
+          if (typeof val === 'string' && val.trim()) {
+            const name = val.trim();
+            let staff = db.staffs.find(s => s.name === name);
+            if (!staff) {
+              staff = { id: Date.now() + i, name };
+              db.staffs.push(staff);
+              staffAdded = true;
+            }
+            finalStaffIds.push(staff.id);
+            finalStaffNames.push(staff.name);
+          } else {
+            const staff = db.staffs.find(s => s.id === val);
+            if (staff) {
+              finalStaffIds.push(staff.id);
+              finalStaffNames.push(staff.name);
+            }
+          }
+        }
+      }
+      if (staffAdded) staffList.value = db.staffs; 
+      form.staffIds = finalStaffIds;
+      form.staffName = finalStaffNames.join('、');
+
+      const conflict = db.contracts.find(c => c.id !== form.id && c.boothId === form.boothId && c.eventDate === form.eventDate && c.status !== 'refund' && !(form.endTime <= c.startTime || form.startTime >= c.endTime))
+      if (conflict) return ElMessage.error(`该机位此时段已被占用：${conflict.customerName} ${conflict.startTime}~${conflict.endTime}`)
+      
+      const booth = db.booths.find(b => b.id === form.boothId)
+      form.boothName = booth ? booth.name : form.boothName
+      
+      calcTotal(); form.balanceAmount = Math.max(0, Number(form.totalAmount) - Number(form.paidTotal || 0)).toFixed(2)
+      const payload = JSON.parse(JSON.stringify(form))
+      payload.overtimePrice = Number(form.overtimePrice) || 0
+      
+      if (!form.id) { payload.id = Date.now(); payload.contractNo = 'JN' + dayjs().format('YYYYMMDD') + Math.random().toString(36).slice(-4).toUpperCase(); db.contracts.push(payload) }
+      else { const idx = db.contracts.findIndex(c => c.id === form.id); if (idx > -1) db.contracts[idx] = payload; else db.contracts.push(payload) }
+      await DB.save(db); ElMessage.success('保存成功'); router.push('/contract-list')
+    }
+    
+    const loadBase = async () => {
+      try {
+        const db = await DB.load(); boothList.value = db.booths; staffList.value = db.staffs; packageList.value = db.packages
+        if (route.query.id) {
+          const c = db.contracts.find(x => x.id == route.query.id)
+          if (c) { 
+            Object.assign(form, JSON.parse(JSON.stringify(c))); 
+            if (!form.items) form.items = []; 
+            if (form.boothId && !boothList.value.find(b => b.id === form.boothId)) form.boothId = null; 
+            
+            if (form.staffIds && Array.isArray(form.staffIds)) {
+              form.staffIds = form.staffIds.filter(id => staffList.value.some(s => s.id === id));
+            } else if (form.staffId !== undefined && form.staffId !== null) {
+              form.staffIds = [form.staffId];
+            } else {
+              form.staffIds = [];
+            }
+
+            if (form.discountType === undefined) { form.discountType = form.discountAmount > 0 ? 'amount' : 'none'; }
+            if (form.discountValue === undefined && form.discountAmount > 0) form.discountValue = form.discountAmount;
+            if (form.originalAmount === undefined) form.originalAmount = form.totalAmount;
+            calcTotal() 
+          }
+        } else if (route.query.date) {
+          form.eventDate = route.query.date;
+          calcTotal()
+        } else {
+          calcTotal()
+        }
+      } catch(e) { console.error(e) }
+    }
+    onMounted(loadBase)
+    return { form, boothList, staffList, packageList, calcTotal, quickAdd, removeItem, onBoothChange, onStaffChange, submit, formatUppercase: digitUppercase }
+  }
+}
+
+/* ===================== 合约订单列表 ===================== */
+const ContractList = {
+  components: { OrderPayment, OrderVerify, OrderRefund },
+  template: `
+    <div class="page-wrap">
+      <el-card>
+        <template #header><div class="header-row"><span>合约订单列表</span><el-button type="primary" @click="$router.push('/contract')">新建预约</el-button></div></template>
+        <el-form :model="query" inline>
+          <el-form-item label="合约号"><el-input v-model="query.contractNo" placeholder="合约编号" clearable /></el-form-item>
+          <el-form-item label="客户"><el-input v-model="query.customer" placeholder="姓名/手机号" clearable /></el-form-item>
+          <el-form-item label="活动日期"><el-date-picker v-model="query.dateRange" type="daterange" value-format="YYYY-MM-DD" /></el-form-item>
+          <el-form-item label="状态">
+            <el-select v-model="query.status" placeholder="全部" clearable style="width:130px">
+              <el-option label="草稿" value="draft" /><el-option label="已付定金" value="deposit_paid" /><el-option label="已核销" value="verified" /><el-option label="已结清" value="settled" /><el-option label="已退款" value="refund" />
+            </el-select>
+          </el-form-item>
+          <el-form-item><el-button type="primary" @click="fetchList">查询</el-button><el-button @click="resetQuery">重置</el-button></el-form-item>
+        </el-form>
+        <el-table :data="tableData" border stripe style="margin-top:16px;" v-loading="loading">
+          <el-table-column label="合约号" prop="contractNo" width="150" /><el-table-column label="客户" prop="customerName" width="100" /><el-table-column label="电话" prop="customerPhone" width="120" />
+          <el-table-column label="机位" prop="boothName" width="110" />
+          <el-table-column label="助理" prop="staffName" width="120" />
+          <el-table-column label="活动日期" prop="eventDate" width="110" /><el-table-column label="时段" width="120"><template #default="{ row }">{{ row.startTime }} ~ {{ row.endTime }}</template></el-table-column>
+          <el-table-column label="总额" prop="totalAmount" width="90" /><el-table-column label="已收" prop="paidTotal" width="90" /><el-table-column label="待收" prop="balanceAmount" width="90" />
+          <el-table-column label="状态" width="100"><template #default="{ row }"><el-tag :type="STATUS_TAG[row.status]">{{ STATUS[row.status] }}</el-tag></template></el-table-column>
+          <el-table-column label="现场备注" prop="verifyRemark" width="110" show-overflow-tooltip />
+          <el-table-column label="操作" width="420" fixed="right">
+            <template #default="{ row }">
+              <el-button link type="primary" @click="openDetail(row)">编辑</el-button>
+              <el-button link type="primary" @click="paymentRef.openDialog(row)" v-if="row.status !== 'refund'">收款</el-button>
+              <el-button link type="success" @click="verifyRef.openDialog(row)" v-if="['deposit_paid','wait_verify'].includes(row.status)">核销</el-button>
+              <el-button link type="danger" @click="refundRef.openDialog(row)" v-if="!['refund','settled'].includes(row.status)">退款</el-button>
+              
+              <el-divider direction="vertical" />
+              <el-button link type="info" @click="printDeposit(row)">打印定金单</el-button>
+              <el-button link type="info" @click="printSettle(row)" v-if="row.status !== 'draft'">打印尾款单</el-button>
+              <el-button link type="info" @click="printRefund(row)" v-if="row.status === 'refund'">打印退款单</el-button>
+              <el-button link type="warning" @click="printReceipt(row)">打印账单</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </el-card>
+      <OrderPayment ref="paymentRef" @success="fetchList" /><OrderVerify ref="verifyRef" @success="fetchList" /><OrderRefund ref="refundRef" @success="fetchList" />
+    </div>
+  `,
+  setup() {
+    const router = useRouter(), loading = ref(false), tableData = ref([]), paymentRef = ref(null), verifyRef = ref(null), refundRef = ref(null)
+    const query = reactive({ contractNo: '', customer: '', dateRange: null, status: '' })
+    const fetchList = async () => {
+      loading.value = true; 
+      try {
+        const db = await DB.load(); let list = [...db.contracts].sort((a, b) => (b.eventDate || '').localeCompare(a.eventDate || ''))
+        if (query.contractNo) list = list.filter(x => (x.contractNo || '').includes(query.contractNo))
+        if (query.customer) list = list.filter(x => (x.customerName || '').includes(query.customer) || (x.customerPhone || '').includes(query.customer))
+        if (query.dateRange && query.dateRange.length === 2) list = list.filter(x => x.eventDate >= query.dateRange[0] && x.eventDate <= query.dateRange[1])
+        if (query.status) list = list.filter(x => x.status === query.status)
+        tableData.value = list; 
+      } catch(e) { console.error(e) }
+      finally { loading.value = false; }
+    }
+    const resetQuery = () => { query.contractNo = ''; query.customer = ''; query.dateRange = null; query.status = ''; fetchList() }
+    const openDetail = (row) => router.push({ path: '/contract', query: { id: row.id } })
+    const printDeposit = (row) => openPrint('/print-deposit', row.id)
+    const printSettle = (row) => openPrint('/print-settle', row.id)
+    const printRefund = (row) => openPrint('/print-refund', row.id)
+    const printReceipt = (row) => openPrint('/print-receipt', row.id)
+    onMounted(fetchList)
+    return { loading, tableData, paymentRef, verifyRef, refundRef, query, fetchList, resetQuery, openDetail, printDeposit, printSettle, printRefund, printReceipt, STATUS, STATUS_TAG }
+  }
+}
+
+/* ===================== 打印页面组件 ===================== */
+const PrintDeposit = {
+  template: `
+    <div class="print-page">
+      <div v-if="!data.contractNo" class="empty-tip">未找到合约数据</div>
+      <div v-else class="print-box">
+        <div class="print-header">
+          <img v-if="shopLogo" :src="shopLogo" class="logo-img" />
+          <div class="company">{{ shopName }} Photobooth</div>
+          <div class="title">预约定金确认单</div>
+          <div class="no">单号：{{ data.contractNo }}</div>
+        </div>
+        <table class="info-table">
+          <tr><td class="label">客户姓名：</td><td>{{ data.customerName }}</td><td class="label">联系电话：</td><td>{{ data.customerPhone || '-' }}</td></tr>
+          <tr><td class="label">活动类型：</td><td>{{ data.eventType }}</td><td class="label">机位：</td><td>{{ data.boothName }}</td></tr>
+          <tr><td class="label">驻场助理：</td><td>{{ data.staffName || '-' }}</td><td class="label">活动日期：</td><td>{{ data.eventDate }}</td></tr>
+          <tr><td class="label">活动时段：</td><td colspan="3">{{ data.startTime }} ~ {{ data.endTime }}</td></tr>
+          <tr><td class="label">活动地址：</td><td colspan="3">{{ data.eventAddress || '-' }}</td></tr>
+        </table>
+        <div class="section-title">套餐明细</div>
+        <table class="item-table">
+          <thead><tr><th>项目名称</th><th width="120">单价(元)</th><th width="80">数量</th><th width="120">小计(元)</th></tr></thead>
+          <tbody>
+            <tr v-for="(item, index) in data.items" :key="index">
+              <td style="text-align: left;">
+                <div>{{ item.name }}</div>
+                <div v-if="item.content" style="font-size:12px; color:#666; margin-top:4px; white-space:pre-wrap; line-height:1.4;">{{ item.content }}</div>
+              </td>
+              <td>{{ Number(item.price).toFixed(2) }}</td><td>{{ item.qty }}</td><td>{{ (Number(item.price) * Number(item.qty)).toFixed(2) }}</td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="section-title">金额汇总</div>
+        <table class="summary-table">
+          <tr v-if="Number(data.discountValue) > 0 || Number(data.discountAmount) > 0">
+            <td class="label">原价总计：</td><td class="val" style="color:#333;">¥ {{ Number(data.originalAmount || data.totalAmount).toFixed(2) }}</td>
+            <td class="label">{{ data.discountType === 'percentage' ? '折扣('+data.discountRate+'折)' : '优惠减免' }}：</td><td class="uppercase" style="color:#d9534f;">- ¥ {{ Number(data.discountValue || data.discountAmount).toFixed(2) }}</td>
+          </tr>
+          <tr>
+            <td class="label">{{ (Number(data.discountValue) > 0 || Number(data.discountAmount) > 0) ? '折后合约总额：' : '合约总额：' }}</td>
+            <td class="val">¥ {{ Number(data.totalAmount).toFixed(2) }}</td>
+            <td class="label">大写金额：</td><td class="uppercase">{{ formatUppercase(data.totalAmount) }}</td>
+          </tr>
+          <tr><td class="label">已收定金：</td><td class="val">¥ {{ Number(data.paidTotal).toFixed(2) }}</td><td class="label">待收尾款：</td><td class="uppercase">¥ {{ Number(data.balanceAmount).toFixed(2) }} ({{ formatUppercase(data.balanceAmount) }})</td></tr>
+        </table>
+        <div class="remark-box"><span style="font-weight: bold;">备注：</span><span>{{ data.remark || '无' }}</span></div>
+        
+        <div class="sign-row">
+          <div class="sign-item" style="flex: 1.2; justify-content: flex-start;">
+            <span class="sign-label">客户：</span>
+            <span class="sign-line" style="min-width: 90px;">{{ data.customerName }}</span>
+          </div>
+          <div class="sign-item" style="flex: 1; justify-content: center;">
+            <span class="sign-label">开票：</span>
+            <span class="sign-line">
+              {{ invoiceName }}
+              <img v-if="stampUrl" :src="stampUrl" style="position: absolute; bottom: -25px; left: 50%; transform: translateX(-50%) rotate(-5deg); width: 80px; max-height: 80px; object-fit: contain; opacity: 0.85; mix-blend-mode: multiply; pointer-events: none;" />
+            </span>
+          </div>
+          <div class="sign-item" style="flex: 1; justify-content: center;">
+            <span class="sign-label">核准：</span>
+            <span class="sign-line">{{ approverName }}</span>
+          </div>
+          <div class="sign-item" style="flex: 1.2; justify-content: flex-end;">
+            <span class="sign-label">日期：</span>
+            <span class="sign-line" style="min-width: 100px;">{{ signDate }}</span>
+          </div>
+        </div>
+
+        <div class="print-footer" v-if="footerThanks || footerSub">
+          <div class="pf-thanks" v-if="footerThanks">{{ footerThanks }}</div>
+          <div class="pf-sub" v-if="footerSub">{{ footerSub }}</div>
+        </div>
+      </div>
+      <div class="btn-wrap"><el-button type="primary" size="large" @click="doPrint">🖨️ 打印此单据</el-button></div>
+    </div>
+  `,
+  setup() {
+    const route = useRoute(), data = ref({}), signDate = ref(''), doPrint = () => window.print()
+    const shopName = ref('洁柠映像'), shopLogo = ref(''), stampUrl = ref(''), invoiceName = ref(''), approverName = ref('')
+    const footerThanks = ref('感谢您的支持与信任！'), footerSub = ref('期待与您再次相遇，记录更多美好瞬间。')
+    onMounted(async () => { 
+      try {
+        const db = await DB.load(); 
+        if(db.shopName) shopName.value = db.shopName
+        if(db.shopLogo) shopLogo.value = db.shopLogo
+        if(db.stampUrl) stampUrl.value = db.stampUrl 
+        if(db.invoiceName) invoiceName.value = db.invoiceName
+        if(db.approverName) approverName.value = db.approverName
+        if(db.footerThanks !== undefined) footerThanks.value = db.footerThanks
+        if(db.footerSub !== undefined) footerSub.value = db.footerSub
+        const c = db.contracts.find(x => x.id == route.query.cid); 
+        if (c) {
+          data.value = c;
+          const payments = db.payments.filter(p => p.contractId == c.id).sort((a,b) => new Date(a.createTime) - new Date(b.createTime));
+          const targetTime = payments.length > 0 ? payments[0].createTime : new Date();
+          signDate.value = dayjs(targetTime).format('YYYY年MM月DD日');
+        }
+      } catch(e) { console.error(e) }
+    })
+    return { data, signDate, doPrint, formatUppercase: digitUppercase, shopName, shopLogo, stampUrl, invoiceName, approverName, footerThanks, footerSub }
+  }
+}
+
+/* ===================== 尾款结算单 ===================== */
+const PrintSettle = {
+  template: `
+    <div class="print-page">
+      <div v-if="!data.contractNo" class="empty-tip">未找到合约数据</div>
+      <div v-else class="print-box">
+        <div class="print-header">
+          <img v-if="shopLogo" :src="shopLogo" class="logo-img" />
+          <div class="company">{{ shopName }} Photobooth</div>
+          <div class="title">尾款结算单</div>
+          <div class="no">单号：{{ data.contractNo }}</div>
+        </div>
+        <table class="info-table">
+          <tr><td class="label">客户姓名：</td><td>{{ data.customerName }}</td><td class="label">联系电话：</td><td>{{ data.customerPhone || '-' }}</td></tr>
+          <tr><td class="label">活动类型：</td><td>{{ data.eventType }}</td><td class="label">机位：</td><td>{{ data.boothName }}</td></tr>
+          <tr><td class="label">驻场助理：</td><td>{{ data.staffName || '-' }}</td><td class="label">活动日期：</td><td>{{ data.eventDate }}</td></tr>
+          <tr>
+            <td class="label">原定时段：</td><td>{{ data.startTime }} ~ {{ data.endTime }}</td>
+            <td class="label">实际开始：</td><td>{{ data.realStartTime || '未记录' }}</td>
+          </tr>
+          <tr>
+            <td class="label">实际结束：</td><td>{{ data.realEndTime || '未记录' }}</td>
+            <td colspan="2"></td>
+          </tr>
+          <tr v-if="data.addOvertimeToBalance === true && Number(data.overtimeFee) > 0">
+            <td class="label">超时费用：</td><td colspan="3">{{ data.overtimeFee ? '¥ ' + Number(data.overtimeFee).toFixed(2) : '无' }}</td>
+          </tr>
+        </table>
+        <div class="section-title">套餐及增项明细</div>
+        <table class="item-table">
+          <thead><tr><th>项目名称</th><th width="120">单价(元)</th><th width="80">数量</th><th width="120">小计(元)</th></tr></thead>
+          <tbody>
+            <tr v-for="(item, index) in data.items" :key="index">
+              <td style="text-align: left;">
+                <div>{{ item.name }}</div>
+                <div v-if="item.content" style="font-size:12px; color:#666; margin-top:4px; white-space:pre-wrap; line-height:1.4;">{{ item.content }}</div>
+              </td>
+              <td>{{ Number(item.price).toFixed(2) }}</td><td>{{ item.qty }}</td><td>{{ (Number(item.price) * Number(item.qty)).toFixed(2) }}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div v-if="data.addOvertimeToBalance === true && Number(data.overtimeFee) > 0" style="margin-top: 20px;">
+          <div class="section-title">超时服务明细</div>
+          <table class="item-table">
+            <thead><tr><th>收费项目</th><th>超时时间</th><th>总计费用(元)</th></tr></thead>
+            <tbody>
+              <tr>
+                <td>现场超时费</td>
+                <td>{{ formatOvertimeDisplay(data.overtimeHour) }}</td>
+                <td>{{ Number(data.overtimeFee).toFixed(2) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="section-title">结算汇总</div>
+        <table class="summary-table">
+          <tr v-if="Number(data.discountValue) > 0 || Number(data.discountAmount) > 0">
+            <td class="label">原价总计：</td><td class="val" style="color:#333;">¥ {{ Number(data.originalAmount || (Number(data.totalAmount) + Number(data.settleDiscount || 0))).toFixed(2) }}</td>
+            <td class="label">{{ data.discountType === 'percentage' ? '折扣('+data.discountRate+'折)' : '优惠减免' }}：</td><td class="uppercase" style="color:#d9534f;">- ¥ {{ Number(data.discountValue || data.discountAmount).toFixed(2) }}</td>
+          </tr>
+          <tr v-if="Number(data.settleDiscount) > 0">
+            <td class="label">结账尾款抹零：</td><td class="val" style="color:#d9534f;">- ¥ {{ Number(data.settleDiscount).toFixed(2) }}</td>
+            <td colspan="2"></td>
+          </tr>
+          <tr>
+            <td class="label">{{ (Number(data.discountValue) > 0 || Number(data.discountAmount) > 0 || Number(data.settleDiscount) > 0) ? '折后应付总额：' : '最终应付总额：' }}</td>
+            <td class="val">¥ {{ Number(data.totalAmount).toFixed(2) }}</td>
+            <td class="label">大写金额：</td><td class="uppercase">{{ formatUppercase(data.totalAmount) }}</td>
+          </tr>
+          <tr>
+            <td class="label">累计已收款：</td>
+            <td class="val">¥ {{ Number(data.paidTotal).toFixed(2) }}</td>
+            <template v-if="Number(data.balanceAmount) > 0">
+              <td class="label">待收尾款：</td>
+              <td class="uppercase" style="color: #f56c6c;">¥ {{ Number(data.balanceAmount).toFixed(2) }}</td>
+            </template>
+          </tr>
+        </table>
+        
+        <div v-if="data.photoLink" class="qrcode-box">
+          <div class="qr-title">底片网盘下载</div>
+          <div class="qr-link">{{ data.photoLink }}</div>
+          <div class="qr-img"><div ref="qrcodeRef"></div></div>
+          <div class="qr-tip">请使用微信或手机浏览器扫码下载</div>
+        </div>
+
+        <div class="remark-box" style="margin-bottom: 10px;"><span style="font-weight: bold;">订单备注：</span><span>{{ data.remark || '无' }}</span></div>
+        <div class="remark-box" v-if="data.verifyRemark"><span style="font-weight: bold;">核销现场备注：</span><span>{{ data.verifyRemark }}</span></div>
+
+        <div class="sign-row">
+          <div class="sign-item" style="flex: 1.2; justify-content: flex-start;">
+            <span class="sign-label">客户：</span>
+            <span class="sign-line" style="min-width: 90px;">{{ data.customerName }}</span>
+          </div>
+          <div class="sign-item" style="flex: 1; justify-content: center;">
+            <span class="sign-label">开票：</span>
+            <span class="sign-line">
+              {{ invoiceName }}
+              <img v-if="stampUrl" :src="stampUrl" style="position: absolute; bottom: -25px; left: 50%; transform: translateX(-50%) rotate(-5deg); width: 80px; max-height: 80px; object-fit: contain; opacity: 0.85; mix-blend-mode: multiply; pointer-events: none;" />
+            </span>
+          </div>
+          <div class="sign-item" style="flex: 1; justify-content: center;">
+            <span class="sign-label">核准：</span>
+            <span class="sign-line">{{ approverName }}</span>
+          </div>
+          <div class="sign-item" style="flex: 1.2; justify-content: flex-end;">
+            <span class="sign-label">日期：</span>
+            <span class="sign-line" style="min-width: 100px;">{{ signDate }}</span>
+          </div>
+        </div>
+
+        <div class="print-footer" v-if="footerThanks || footerSub">
+          <div class="pf-thanks" v-if="footerThanks">{{ footerThanks }}</div>
+          <div class="pf-sub" v-if="footerSub">{{ footerSub }}</div>
+        </div>
+      </div>
+      <div class="btn-wrap"><el-button type="primary" size="large" @click="doPrint">🖨️ 打印此单据</el-button></div>
+    </div>
+  `,
+  setup() {
+    const route = useRoute(), data = ref({}), signDate = ref(''), doPrint = () => window.print(), qrcodeRef = ref(null)
+    const shopName = ref('洁柠映像'), shopLogo = ref(''), stampUrl = ref(''), invoiceName = ref(''), approverName = ref('')
+    const footerThanks = ref('感谢您的支持与信任！'), footerSub = ref('期待与您再次相遇，记录更多美好瞬间。')
+    
+    const formatOvertimeDisplay = (hours) => {
+      const h = Number(hours);
+      if (h === 0) return '0';
+      const totalMins = Math.round(h * 60);
+      const hr = Math.floor(totalMins / 60);
+      const min = totalMins % 60;
+      if (hr > 0 && min > 0) return `${hr}小时${min}分钟`;
+      if (hr > 0) return `${hr}小时`;
+      return `${min}分钟`;
+    }
+
+    onMounted(async () => { 
+      try {
+        const db = await DB.load(); 
+        if(db.shopName) shopName.value = db.shopName
+        if(db.shopLogo) shopLogo.value = db.shopLogo
+        if(db.stampUrl) stampUrl.value = db.stampUrl 
+        if(db.invoiceName) invoiceName.value = db.invoiceName
+        if(db.approverName) approverName.value = db.approverName
+        if(db.footerThanks !== undefined) footerThanks.value = db.footerThanks
+        if(db.footerSub !== undefined) footerSub.value = db.footerSub
+        const c = db.contracts.find(x => x.id == route.query.cid); 
+        if (c) {
+          data.value = c;
+          const payments = db.payments.filter(p => p.contractId == c.id).sort((a,b) => new Date(a.createTime) - new Date(b.createTime));
+          const targetTime = payments.length > 0 ? payments[payments.length - 1].createTime : new Date();
+          signDate.value = dayjs(targetTime).format('YYYY年MM月DD日');
+
+          nextTick(() => {
+            if (c.photoLink && qrcodeRef.value) {
+              new QRCode(qrcodeRef.value, {
+                text: c.photoLink,
+                width: 130,
+                height: 130,
+                colorDark : "#000000",
+                colorLight : "#ffffff",
+                correctLevel : QRCode.CorrectLevel.H
+              });
+            }
+          });
+        }
+      } catch(e) { console.error(e) }
+    })
+    return { data, signDate, doPrint, formatUppercase: digitUppercase, qrcodeRef, shopName, shopLogo, stampUrl, invoiceName, approverName, footerThanks, footerSub, formatOvertimeDisplay }
+  }
+}
+
+/* ===================== 账单（热敏小票，纸张/字号可在基础设置选择） ===================== */
+const PrintReceipt = {
+  template: `
+    <div class="print-page">
+      <div v-if="!data.contractNo" class="empty-tip">未找到合约数据</div>
+      <div v-else class="receipt-box" :class="'rc-paper-' + paperMm" :style="boxStyle">
+        <div class="rc-head">
+          <img v-if="shopLogo" :src="shopLogo" class="rc-logo" @load="updatePageSize" />
+          <div class="rc-shop">{{ shopName }} Photobooth</div>
+          <div class="rc-title">账 单</div>
+          <div class="rc-meta">单号：{{ data.contractNo }}</div>
+        </div>
+
+        <div class="rc-sec">
+          <div class="rc-row"><span>客户</span><span>{{ data.customerName }}</span></div>
+          <div class="rc-row"><span>电话</span><span>{{ data.customerPhone || '-' }}</span></div>
+          <div class="rc-row"><span>活动日期</span><span>{{ data.eventDate || '-' }}</span></div>
+          <div class="rc-row" v-if="data.startTime || data.endTime"><span>服务时段</span><span>{{ data.startTime || '-' }} ~ {{ data.endTime || '-' }}</span></div>
+          <div class="rc-row"><span>机位</span><span>{{ data.boothName || '-' }}</span></div>
+          <div class="rc-row" v-if="data.staffName"><span>助理</span><span>{{ data.staffName }}</span></div>
+        </div>
+
+        <div class="rc-sec" v-if="showItems && itemList.length">
+          <div class="rc-sec-title">服务项目</div>
+          <div class="rc-item" v-for="(item, i) in itemList" :key="i">
+            <div class="rc-item-head"><span>{{ item.name }}</span><span>¥ {{ money(Number(item.price) * Number(item.qty)) }}</span></div>
+            <div class="rc-item-sub" v-if="Number(item.qty) > 1">{{ money(item.price) }} × {{ item.qty }}</div>
+            <div class="rc-item-content" v-if="item.content">{{ item.content }}</div>
+          </div>
+        </div>
+
+        <div class="rc-sec" v-if="showDiscount">
+          <div class="rc-sec-title">优惠</div>
+          <div class="rc-row"><span>原价合计</span><span>¥ {{ money(originalAmount) }}</span></div>
+          <div class="rc-row rc-discount" v-if="discountValue > 0"><span>{{ discountLabel }}</span><span>- ¥ {{ money(discountValue) }}</span></div>
+          <div class="rc-row rc-discount" v-if="settleDiscount > 0"><span>尾款抹零</span><span>- ¥ {{ money(settleDiscount) }}</span></div>
+          <div class="rc-row rc-strong"><span>折后合计</span><span>¥ {{ money(afterDiscount) }}</span></div>
+        </div>
+
+        <div class="rc-sec">
+          <div class="rc-sec-title">收款记录</div>
+          <div class="rc-pay" v-for="(pay, i) in paymentList" :key="i">
+            <div class="rc-pay-head">
+              <span>{{ payTypeLabel(pay.payType) }}</span>
+              <span class="rc-amt">¥ {{ money(pay.payAmount) }}</span>
+            </div>
+            <div class="rc-pay-sub">{{ pay.createTime }} · {{ pay.payWay }}<span v-if="Number(pay.discountAmount) > 0"> · 抹零 ¥{{ money(pay.discountAmount) }}</span></div>
+          </div>
+          <div v-if="!paymentList.length" class="rc-muted">暂无收款记录</div>
+        </div>
+
+        <div class="rc-sec" v-if="hasTailBreakdown">
+          <div class="rc-sec-title">尾款明细</div>
+          <div class="rc-row" v-if="tailBreakdown.pkg > 0"><span>套餐尾款</span><span>¥ {{ money(tailBreakdown.pkg) }}</span></div>
+          <div class="rc-row" v-if="tailBreakdown.ot > 0"><span>超时服务费</span><span>¥ {{ money(tailBreakdown.ot) }}</span></div>
+          <div class="rc-row" v-if="tailBreakdown.addon > 0"><span>其他增值费用</span><span>¥ {{ money(tailBreakdown.addon) }}</span></div>
+          <div class="rc-row rc-strong"><span>尾款合计</span><span>¥ {{ money(balancePaid) }}</span></div>
+        </div>
+
+        <div class="rc-sec" v-if="overtimeFee > 0">
+          <div class="rc-sec-title">超时费用</div>
+          <div class="rc-row"><span>超时时长</span><span>{{ overtimeText }}</span></div>
+          <div class="rc-row" v-if="Number(data.overtimePrice) > 0"><span>超时单价</span><span>¥ {{ money(data.overtimePrice) }} / 30分钟</span></div>
+          <div class="rc-row"><span>超时费</span><span>¥ {{ money(overtimeFee) }}</span></div>
+          <div class="rc-row rc-discount" v-if="!overtimeCharged"><span>超时费减免</span><span>- ¥ {{ money(overtimeFee) }}</span></div>
+          <div class="rc-note" v-if="overtimeCharged">超时费已计入应收尾款</div>
+          <div class="rc-note" v-else>本次未收取超时费，已全额减免</div>
+        </div>
+
+        <div class="rc-sec">
+          <div class="rc-sec-title">金额汇总</div>
+          <div class="rc-row"><span>应收总额</span><span>¥ {{ money(data.totalAmount) }}</span></div>
+          <div class="rc-row"><span>累计已收</span><span>¥ {{ money(data.paidTotal) }}</span></div>
+          <div class="rc-row rc-strong" v-if="balanceAmount > 0"><span>剩余待收</span><span style="color:#d9534f">¥ {{ money(balanceAmount) }}</span></div>
+          <div class="rc-upper">大写（已收）：{{ formatUppercase(data.paidTotal) }}</div>
+        </div>
+
+        <div class="rc-invoice" v-if="invoiceQrLink">
+          <div class="rc-inv-title">扫码开票</div>
+          <div class="rc-inv-qr" ref="invoiceQrRef"></div>
+          <div class="rc-inv-tip">扫码填写发票抬头，电子发票将发送至您预留的邮箱</div>
+        </div>
+
+        <div class="rc-sec" v-if="data.remark">
+          <div class="rc-sec-title">备注</div>
+          <div class="rc-remark">{{ data.remark }}</div>
+        </div>
+
+        <div class="rc-sign" :style="stampUrl ? { paddingBottom: paperMm === 58 ? '18mm' : '13mm' } : null">
+          <div class="rc-sign-item"><span class="rc-sign-label">开票：</span><span class="rc-underline">{{ invoiceName }}<img v-if="stampUrl" :src="stampUrl" class="rc-stamp" @load="updatePageSize" /></span></div>
+          <div class="rc-sign-item"><span class="rc-sign-label">日期：</span><span class="rc-underline">{{ signDate }}</span></div>
+        </div>
+
+        <div class="rc-footer" v-if="footerThanks || footerSub">
+          <div class="rc-thanks" v-if="footerThanks">{{ footerThanks }}</div>
+          <div class="rc-sub" v-if="footerSub">{{ footerSub }}</div>
+        </div>
+      </div>
+      <div class="btn-wrap" v-if="data.contractNo"><el-button type="primary" size="large" @click="doPrint">🖨️ 打印账单（{{ paperMm }}mm）</el-button></div>
+      <div class="receipt-tip" v-if="data.contractNo" style="text-align:center; color:#909399; font-size:12px; margin-top:10px;">打印时请选择 {{ paperMm }}mm 热敏纸、边距“无”、缩放 100%；纸张与字号可在“基础设置 → 店铺设置 → 打印账单”修改。</div>
+    </div>
+  `,
+  setup() {
+    const route = useRoute(), data = ref({}), paymentList = ref([]), signDate = ref(''), doPrint = () => { updatePageSize(); setTimeout(() => window.print(), 100) }
+    const shopName = ref('洁柠映像'), shopLogo = ref(''), stampUrl = ref(''), invoiceName = ref(''), approverName = ref('')
+    const footerThanks = ref('感谢您的支持与信任！'), footerSub = ref('期待与您再次相遇，记录更多美好瞬间。')
+    const paper = ref('80'), fontKey = ref('normal'), showItems = ref(true)
+    const invoiceQrEnabled = ref(false), invoiceQrUrl = ref(''), invoiceQrRef = ref(null)
+
+    const PAGE_STYLE_ID = 'receipt-page-size-style'
+    const money = (v) => Number(v || 0).toFixed(2)
+    const payTypeLabel = (t) => t === 'deposit' ? '定金' : t === 'balance' ? '尾款/结清' : t === 'extra' ? '现场超时/增项' : '收款'
+    const formatOvertimeDisplay = (hours) => {
+      const h = Number(hours)
+      if (!h) return '0'
+      const totalMins = Math.round(h * 60)
+      const hr = Math.floor(totalMins / 60), min = totalMins % 60
+      if (hr > 0 && min > 0) return hr + '小时' + min + '分钟'
+      if (hr > 0) return hr + '小时'
+      return min + '分钟'
+    }
+
+    const itemList = computed(() => data.value.items || [])
+    const overtimeFee = computed(() => Number(data.value.overtimeFee) || 0)
+    const overtimeCharged = computed(() => data.value.addOvertimeToBalance === true)
+    const overtimeText = computed(() => formatOvertimeDisplay(data.value.overtimeHour || 0))
+    const discountValue = computed(() => Number(data.value.discountValue || data.value.discountAmount) || 0)
+    const hasDiscount = computed(() => discountValue.value > 0)
+    const discountLabel = computed(() => data.value.discountType === 'percentage' ? '折扣（' + data.value.discountRate + '折）' : '优惠减免')
+    const originalAmount = computed(() => {
+      const o = Number(data.value.originalAmount)
+      if (o > 0) return o
+      const sum = (data.value.items || []).reduce((s, it) => s + Number(it.price || 0) * Number(it.qty || 0), 0)
+      if (sum > 0) return sum
+      const charged = data.value.addOvertimeToBalance === true ? Number(data.value.overtimeFee) || 0 : 0
+      return Math.max(0, Number(data.value.totalAmount || 0) + discountValue.value + (Number(data.value.settleDiscount) || 0) - charged)
+    })
+    const settleDiscount = computed(() => Number(data.value.settleDiscount) || 0)
+    const afterDiscount = computed(() => Math.max(0, originalAmount.value - discountValue.value - settleDiscount.value))
+    const showDiscount = computed(() => discountValue.value > 0 || settleDiscount.value > 0)
+    const balanceAmount = computed(() => Number(data.value.balanceAmount) || 0)
+
+    // 套餐 / 其他增值的区分：新合同有 kind 标记；老合同按“是否属于套餐列表”判断
+    const packageNames = ref([])
+    const isAddonItem = (item) => {
+      if (!item) return false
+      if (item.kind) return item.kind === 'addon'
+      if (itemList.value.length <= 1) return false
+      return packageNames.value.indexOf(item.name) === -1
+    }
+    const originalPkg = computed(() => itemList.value.filter(i => !isAddonItem(i)).reduce((s, i) => s + Number(i.price || 0) * Number(i.qty || 0), 0))
+    const originalAddon = computed(() => itemList.value.filter(i => isAddonItem(i)).reduce((s, i) => s + Number(i.price || 0) * Number(i.qty || 0), 0))
+    const netRatio = computed(() => originalAmount.value > 0 ? afterDiscount.value / originalAmount.value : 1)
+    const pkgNet = computed(() => Math.round(originalPkg.value * netRatio.value * 100) / 100)
+    const addonNet = computed(() => Math.round(originalAddon.value * netRatio.value * 100) / 100)
+    const overtimeNet = computed(() => overtimeCharged.value ? overtimeFee.value : 0)
+    const depositPaid = computed(() => paymentList.value.filter(p => p.payType === 'deposit').reduce((s, p) => s + Number(p.payAmount || 0), 0))
+    const extraPaid = computed(() => paymentList.value.filter(p => p.payType === 'extra').reduce((s, p) => s + Number(p.payAmount || 0), 0))
+    const balancePaid = computed(() => paymentList.value.filter(p => p.payType !== 'deposit' && p.payType !== 'extra').reduce((s, p) => s + Number(p.payAmount || 0), 0))
+    const tailBreakdown = computed(() => {
+      const B = balancePaid.value
+      if (B <= 0) return null
+      let prepaid = depositPaid.value + extraPaid.value
+      const pkgPre = Math.min(pkgNet.value, prepaid); prepaid -= pkgPre
+      const otPre = Math.min(overtimeNet.value, prepaid); prepaid -= otPre
+      const addonPre = Math.min(addonNet.value, prepaid)
+      let left = B
+      const pkg = Math.min(Math.max(0, pkgNet.value - pkgPre), left); left -= pkg
+      const ot = Math.min(Math.max(0, overtimeNet.value - otPre), left); left -= ot
+      let addon = Math.min(Math.max(0, addonNet.value - addonPre), left); left -= addon
+      if (left > 0.004) addon += left
+      return { pkg: +pkg.toFixed(2), ot: +ot.toFixed(2), addon: +addon.toFixed(2) }
+    })
+    const hasTailBreakdown = computed(() => {
+      const t = tailBreakdown.value
+      return !!t && (t.pkg > 0 || t.ot > 0 || t.addon > 0)
+    })
+
+    // 纸张宽度 / 字号来自「基础设置 → 打印账单」，页面里用 CSS 变量统一缩放
+    const paperMm = computed(() => String(paper.value) === '58' ? 58 : 80)
+    const baseFontPx = computed(() => fontKey.value === 'small' ? 10 : fontKey.value === 'large' ? 12.5 : 11)
+    const boxStyle = computed(() => ({ '--rc-width': paperMm.value + 'mm', '--rc-base': baseFontPx.value + 'px' }))
+
+    // 开票二维码：把账单数据填进平台链接模板
+    const invoiceQrLink = computed(() => {
+      if (!invoiceQrEnabled.value || !invoiceQrUrl.value) return ''
+      const map = {
+        amount: money(data.value.totalAmount),
+        paid: money(data.value.paidTotal),
+        contractNo: data.value.contractNo || '',
+        customer: data.value.customerName || '',
+        shop: shopName.value,
+        date: signDate.value
+      }
+      return invoiceQrUrl.value.replace(/\{(amount|paid|contractNo|customer|shop|date)\}/g, (m, k) => encodeURIComponent(map[k]))
+    })
+    const renderInvoiceQr = () => {
+      if (!invoiceQrRef.value || !invoiceQrLink.value) return
+      invoiceQrRef.value.innerHTML = ''
+      try {
+        new QRCode(invoiceQrRef.value, {
+          text: invoiceQrLink.value,
+          width: 200,
+          height: 200,
+          colorDark: '#000000',
+          colorLight: '#ffffff',
+          correctLevel: QRCode.CorrectLevel.M
+        })
+      } catch (e) { console.error(e) }
+    }
+
+    // 宽度按设置固定，高度按内容实测后写入 @page，避免小票被截断或留白
+    const updatePageSize = () => {
+      const el = document.querySelector('.receipt-box')
+      if (!el) return
+      const hMm = Math.max(50, Math.ceil(el.getBoundingClientRect().height * 25.4 / 96) + 5)
+      let tag = document.getElementById(PAGE_STYLE_ID)
+      if (!tag) { tag = document.createElement('style'); tag.id = PAGE_STYLE_ID; document.head.appendChild(tag) }
+      tag.textContent = '@page { size: ' + paperMm.value + 'mm ' + hMm + 'mm; margin: 0; }'
+    }
+
+    onMounted(async () => {
+      try {
+        const db = await DB.load()
+        if(db.shopName) shopName.value = db.shopName
+        if(db.shopLogo) shopLogo.value = db.shopLogo
+        if(db.stampUrl) stampUrl.value = db.stampUrl
+        if(db.invoiceName) invoiceName.value = db.invoiceName
+        if(db.approverName) approverName.value = db.approverName
+        if(db.footerThanks !== undefined) footerThanks.value = db.footerThanks
+        if(db.footerSub !== undefined) footerSub.value = db.footerSub
+        if(db.receiptPaper) paper.value = db.receiptPaper
+        if(db.receiptFont) fontKey.value = db.receiptFont
+        if(db.receiptShowItems !== undefined) showItems.value = db.receiptShowItems !== false
+        if(db.invoiceQrEnabled !== undefined) invoiceQrEnabled.value = !!db.invoiceQrEnabled
+        if(db.invoiceQrUrl) invoiceQrUrl.value = db.invoiceQrUrl
+        packageNames.value = (db.packages || []).map(p => p.name)
+        const c = db.contracts.find(x => x.id == route.query.cid)
+        if (c) {
+          data.value = c
+          paymentList.value = db.payments.filter(x => x.contractId == c.id).sort((a,b) => new Date(a.createTime) - new Date(b.createTime))
+          signDate.value = dayjs().format('YYYY年MM月DD日')
+        }
+      } catch(e) { console.error(e) }
+      await nextTick()
+      renderInvoiceQr()
+      setTimeout(updatePageSize, 200)
+      if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => setTimeout(updatePageSize, 50))
+    })
+
+    onBeforeUnmount(() => {
+      const tag = document.getElementById(PAGE_STYLE_ID)
+      if (tag) tag.remove()
+    })
+
+    return { data, paymentList, signDate, doPrint, updatePageSize, money, payTypeLabel, formatUppercase: digitUppercase, shopName, shopLogo, stampUrl, invoiceName, approverName, footerThanks, footerSub, itemList, overtimeFee, overtimeCharged, overtimeText, discountValue, hasDiscount, discountLabel, originalAmount, settleDiscount, afterDiscount, showDiscount, balanceAmount, tailBreakdown, hasTailBreakdown, balancePaid, paperMm, boxStyle, showItems, invoiceQrLink, invoiceQrRef }
+  }
+}
+
+const PrintRefund = {
+  template: `
+    <div class="print-page">
+      <div v-if="!data.contractNo" class="empty-tip">未找到合约数据</div>
+      <div v-else class="print-box">
+        <div class="print-header">
+          <img v-if="shopLogo" :src="shopLogo" class="logo-img" />
+          <div class="company">{{ shopName }} Photobooth</div>
+          <div class="title">退款凭证</div>
+          <div class="no">单号：{{ data.contractNo }}</div>
+        </div>
+        <table class="info-table">
+          <tr><td class="label">客户姓名：</td><td>{{ data.customerName }}</td><td class="label">联系电话：</td><td>{{ data.customerPhone || '-' }}</td></tr>
+          <tr><td class="label">驻场助理：</td><td>{{ data.staffName || '-' }}</td><td class="label">机位：</td><td>{{ data.boothName }}</td></tr>
+          <tr><td class="label">活动日期：</td><td colspan="3">{{ data.eventDate }}</td></tr>
+        </table>
+        <div class="section-title">退款详情</div>
+        <table class="summary-table" style="margin-top: 20px;">
+          <tr v-if="Number(data.discountValue) > 0 || Number(data.discountAmount) > 0">
+            <td class="label">原价总计：</td><td class="val" style="color:#333;">¥ {{ Number(data.originalAmount || data.totalAmount).toFixed(2) }}</td>
+            <td class="label">{{ data.discountType === 'percentage' ? '折扣('+data.discountRate+'折)' : '优惠减免' }}：</td><td class="uppercase" style="color:#d9534f;">- ¥ {{ Number(data.discountValue || data.discountAmount).toFixed(2) }}</td>
+          </tr>
+          <tr>
+            <td class="label">{{ (Number(data.discountValue) > 0 || Number(data.discountAmount) > 0) ? '折后合约总额：' : '合约总额：' }}</td>
+            <td class="val" style="color: #333;">¥ {{ Number(data.totalAmount).toFixed(2) }}</td>
+            <td></td><td></td>
+          </tr>
+          <tr><td class="label">原已收金额：</td><td class="val" style="color: #333;">¥ {{ Number(data.paidTotal + refundInfo.refundAmount).toFixed(2) }}</td><td></td><td></td></tr>
+          <tr><td class="label" style="color:#d9534f;">本次退款金额：</td><td class="val" style="font-size: 18px;">¥ {{ Number(refundInfo.refundAmount).toFixed(2) }}</td><td class="label">大写金额：</td><td class="uppercase" style="color: #d9534f;">{{ formatUppercase(refundInfo.refundAmount) }}</td></tr>
+          <tr><td class="label">退款方式：</td><td style="font-weight: bold;">{{ refundInfo.refundWay }}</td><td class="label">退款原因：</td><td>{{ refundInfo.refundReasonType }}</td></tr>
+          <tr v-if="refundInfo.newContractNo"><td class="label">新合约号：</td><td colspan="3">{{ refundInfo.newContractNo }}</td></tr>
+        </table>
+        <div class="remark-box"><span style="font-weight: bold;">备注：</span><span>{{ refundInfo.remark || '无' }}</span></div>
+        
+        <div class="sign-row">
+          <div class="sign-item" style="flex: 1.2; justify-content: flex-start;">
+            <span class="sign-label">客户：</span>
+            <span class="sign-line" style="min-width: 90px;">{{ data.customerName }}</span>
+          </div>
+          <div class="sign-item" style="flex: 1; justify-content: center;">
+            <span class="sign-label">开票：</span>
+            <span class="sign-line">
+              {{ invoiceName }}
+              <img v-if="stampUrl" :src="stampUrl" style="position: absolute; bottom: -25px; left: 50%; transform: translateX(-50%) rotate(-5deg); width: 80px; max-height: 80px; object-fit: contain; opacity: 0.85; mix-blend-mode: multiply; pointer-events: none;" />
+            </span>
+          </div>
+          <div class="sign-item" style="flex: 1; justify-content: center;">
+            <span class="sign-label">核准：</span>
+            <span class="sign-line">{{ approverName }}</span>
+          </div>
+          <div class="sign-item" style="flex: 1.2; justify-content: flex-end;">
+            <span class="sign-label">日期：</span>
+            <span class="sign-line" style="min-width: 100px;">{{ signDate }}</span>
+          </div>
+        </div>
+
+        <div class="print-footer" v-if="footerThanks || footerSub">
+          <div class="pf-thanks" v-if="footerThanks">{{ footerThanks }}</div>
+          <div class="pf-sub" v-if="footerSub">{{ footerSub }}</div>
+        </div>
+      </div>
+      <div class="btn-wrap"><el-button type="primary" size="large" @click="doPrint">🖨️ 打印此单据</el-button></div>
+    </div>
+  `,
+  setup() {
+    const route = useRoute(), data = ref({}), refundInfo = ref({}), signDate = ref(''), doPrint = () => window.print()
+    const shopName = ref('洁柠映像'), shopLogo = ref(''), stampUrl = ref(''), invoiceName = ref(''), approverName = ref('')
+    const footerThanks = ref('感谢您的支持与信任！'), footerSub = ref('期待与您再次相遇，记录更多美好瞬间。')
+    onMounted(async () => {
+      try {
+        const db = await DB.load(); 
+        if(db.shopName) shopName.value = db.shopName
+        if(db.shopLogo) shopLogo.value = db.shopLogo
+        if(db.stampUrl) stampUrl.value = db.stampUrl 
+        if(db.invoiceName) invoiceName.value = db.invoiceName
+        if(db.approverName) approverName.value = db.approverName
+        if(db.footerThanks !== undefined) footerThanks.value = db.footerThanks
+        if(db.footerSub !== undefined) footerSub.value = db.footerSub
+        const c = db.contracts.find(x => x.id == route.query.cid); const r = db.refunds.filter(x => x.contractId == route.query.cid).pop()
+        if (c) data.value = c; 
+        if (r) {
+          refundInfo.value = r;
+          signDate.value = dayjs(r.createTime).format('YYYY年MM月DD日');
+        } else {
+          refundInfo.value = { refundAmount: 0, refundWay: '-', refundReasonType: '-', remark: '' };
+          signDate.value = dayjs().format('YYYY年MM月DD日');
+        }
+      } catch(e) { console.error(e) }
+    })
+    return { data, refundInfo, signDate, doPrint, formatUppercase: digitUppercase, shopName, shopLogo, stampUrl, invoiceName, approverName, footerThanks, footerSub }
+  }
+}
+
+/* ===================== 路由 ===================== */
+const routes = [
+  { path: '/login', component: Login },
+  { path: '/', component: MainLayout, redirect: '/calendar', children: [
+      { path: '/calendar', component: CalendarBoard },
+      { path: '/contract', component: ContractForm },
+      { path: '/contract-list', component: ContractList },
+      { path: '/settings', component: Settings }
+  ]},
+  { path: '/print-deposit', component: PrintDeposit },
+  { path: '/print-settle', component: PrintSettle },
+  { path: '/print-receipt', component: PrintReceipt }, // 账单路由
+  { path: '/print-refund', component: PrintRefund },
+  { path: '/:pathMatch(.*)*', redirect: '/calendar' }
+]
+
+const router = createRouter({ history: createWebHashHistory(), routes })
+router.beforeEach((to, from, next) => {
+  const user = DB.getUser()
+  if (to.path.startsWith('/print-')) return next()
+  if (to.path !== '/login' && !user) next('/login')
+  else next()
+})
+
+const app = createApp({ template: '<router-view />' })
+app.use(router)
+app.use(ElementPlus, window.ElementPlusLocaleZhCn ? { locale: window.ElementPlusLocaleZhCn } : {})
+if (window.ElementPlusIconsVue) {
+  for (const [name, comp] of Object.entries(window.ElementPlusIconsVue)) app.component(name, comp)
+}
+
+app.mount('#app');
+</script>
+</body>
+</html>
